@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026.6.14 的 AIGC 设计日报</title>
+<style>
+:root {
+  --bg:          #FBF7EF;
+  --bg-card:     #FDFCFA;
+  --bg-warm:     #F7F3EA;
+  --text:         #2B2926;
+  --text-2:       #6F6A61;
+  --text-3:       #9E978D;
+  --accent:       #C96442;
+  --accent-2:     #A95F43;
+  --accent-light: #F5EDE6;
+  --border:       #E8E2D8;
+  --border-hover: #C9C2B5;
+  --insight-bg:   #F9F1EB;
+  --insight-bd:   #D9C8B8;
+  --max-w:        1040px;
+  --radius:       14px;
+  --shadow:       0 1px 3px rgba(43,41,38,0.04);
+  --shadow-hover: 0 2px 8px rgba(43,41,38,0.07);
+  --mono:         "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  --serif:        Georgia, "Times New Roman", "Noto Serif SC", serif;
+  --sans:         system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: clip;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-2); }
+
+.hero {
+  background: linear-gradient(180deg, #F7F3EA 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.hero-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 36px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hero-copy { min-width: 0; padding-bottom: 0; }
+.hero-eyebrow {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 12px;
+}
+.hero-title {
+  font-family: var(--serif); font-size: 34px; font-weight: 400;
+  color: var(--text); letter-spacing: -0.01em; line-height: 1.2; margin-bottom: 14px;
+}
+.hero-lead {
+  font-size: 14px; color: var(--text-2); line-height: 1.7;
+  max-width: 480px; margin-bottom: 12px;
+}
+.hero-meta {
+  font-size: 12px; color: var(--text-3);
+  display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center;
+}
+.hero-meta-sep { width: 1px; height: 12px; background: var(--border); flex-shrink: 0; }
+
+.brief-card {
+  width: 100%; max-width: min(680px, 100%);
+  background: #FEFCF8; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 20px; display: flex; align-items: center;
+  flex-wrap: wrap; gap: 8px 0; margin-top: 0;
+}
+.brief-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 0;
+  margin-right: 10px; display: inline;
+}
+.brief-number {
+  font-family: var(--serif); font-size: 26px; font-weight: 400;
+  color: var(--text); line-height: 1; margin-bottom: 0; margin-right: 4px; display: inline;
+}
+.brief-unit { font-size: 12px; color: var(--text-2); margin-bottom: 0; display: inline; }
+.brief-stats {
+  display: flex; flex-wrap: wrap; gap: 2px 14px; margin-left: 16px;
+  padding-left: 16px; border-left: 1px solid var(--border);
+}
+.brief-stat { font-size: 12px; color: var(--text-2); font-weight: 500; white-space: nowrap; }
+.brief-stat strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.brief-weather {
+  display: flex; align-items: center; gap: 6px; margin-left: 16px;
+  padding-left: 16px; border-left: 1px solid var(--border);
+  font-size: 12px; color: var(--text-2); white-space: nowrap;
+}
+.weather-icon { font-size: 16px; line-height: 1; }
+.weather-info { font-variant-numeric: tabular-nums; }
+.brief-footer {
+  margin-top: 0; padding-top: 0; border-top: none;
+  font-size: 11px; color: var(--text-3); line-height: 1.5;
+  margin-left: auto; white-space: nowrap;
+}
+
+.toc {
+  border-top: 1px solid var(--border);
+  background: rgba(251,247,239,0.94);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  position: sticky; top: 0; z-index: 100;
+}
+.toc-inner {
+  max-width: var(--max-w); margin: 0 auto; padding: 8px 32px;
+  display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: center;
+}
+.toc-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-3); margin-right: 4px;
+}
+.toc-link {
+  font-size: 13px; color: var(--text-2); padding: 6px 4px;
+  border-bottom: 1.5px solid transparent; transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap; border-radius: 2px;
+}
+.toc-link:hover { color: var(--accent); border-bottom-color: var(--accent); text-decoration: none; }
+.toc-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+.main { max-width: var(--max-w); margin: 0 auto; padding: 44px 32px 64px; }
+
+.section { margin-bottom: 36px; scroll-margin-top: 70px; }
+@media (max-width: 768px) { .section { scroll-margin-top: 120px; } }
+.section-header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.section-title-cn { font-family: var(--serif); font-size: 21px; font-weight: 400; color: var(--text); letter-spacing: -0.01em; }
+.section-title-en { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-top: 3px; }
+.section-desc { font-size: 13px; color: var(--text-2); margin-top: 9px; line-height: 1.65; max-width: 620px; }
+.section-count {
+  display: inline-block; font-size: 11px; color: var(--text-3);
+  background: var(--accent-light); padding: 2px 10px; border-radius: 4px;
+  margin-top: 7px; font-weight: 500;
+}
+
+.cards { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 860px) { .cards { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); } }
+
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px 22px 18px; transition: border-color 0.3s ease, background 0.3s ease;
+  display: flex; flex-direction: column; gap: 9px;
+  animation: fadeUp 0.5s ease both; opacity: 0;
+}
+.card:nth-child(1) { animation-delay: 0.04s; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.12s; }
+.card:nth-child(4) { animation-delay: 0.16s; }
+.card:nth-child(5) { animation-delay: 0.2s; }
+.card:nth-child(6) { animation-delay: 0.24s; }
+.card:nth-child(7) { animation-delay: 0.28s; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; opacity: 1; } .card-link::after { transition: none; } }
+.card:hover { border-color: var(--border-hover); background: #FFFDF9; }
+
+.card-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.card-num { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em; }
+.card-section-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 1.5px 7px; border-radius: 3px; white-space: nowrap;
+}
+.tag-models  { background: #FDE8E8; color: #B91C1C; }
+.tag-products{ background: #E0F2FE; color: #0369A1; }
+.tag-industry{ background: #FEF3C7; color: #92400E; }
+.tag-paper   { background: #EDE9FE; color: #6D28D9; }
+.tag-tip     { background: #D1FAE5; color: #047857; }
+
+.card-source { font-size: 11px; color: var(--text-3); font-weight: 500; }
+.card-time { font-size: 11px; color: var(--text-3); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.card-title { font-size: 14.5px; font-weight: 600; color: var(--text); line-height: 1.5; letter-spacing: -0.005em; }
+.card-summary { font-size: 13px; color: var(--text-2); line-height: 1.65; }
+.card-insight {
+  font-size: 12px; color: var(--accent-2); background: var(--insight-bg);
+  border-left: 2px solid var(--insight-bd); padding: 8px 13px;
+  border-radius: 0 5px 5px 0; line-height: 1.6;
+}
+.card-link {
+  font-size: 12px; font-weight: 500; color: var(--accent);
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: auto; padding: 8px 4px; transition: color 0.2s; border-radius: 3px;
+}
+.card-link:hover { color: var(--accent-2); }
+.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.card-link::after { content: '\2192'; font-size: 12px; transition: transform 0.2s; display: inline-block; }
+.card-link:hover::after { transform: translateX(3px); }
+
+.footer { max-width: var(--max-w); margin: 0 auto; padding: 28px 32px 48px; border-top: 1px solid var(--border); text-align: center; }
+.footer-text { font-size: 12px; color: var(--text-3); line-height: 1.8; }
+
+@media (max-width: 768px) {
+  .hero-inner { padding: 28px 20px 12px; gap: 12px; }
+  .hero-title { font-size: 26px; }
+  .brief-card { flex-direction: column; align-items: flex-start; padding: 12px 16px; gap: 6px 0; }
+  .brief-stats { margin-left: 0; padding-left: 0; border-left: none; padding-top: 8px; border-top: 1px solid var(--border); width: 100%; }
+  .brief-footer { margin-left: 0; width: 100%; }
+  .brief-weather { margin-left: 0; padding-left: 0; border-left: none; padding-top: 8px; border-top: 1px solid var(--border); width: 100%; }
+  .main { padding: 32px 20px 48px; }
+  .toc-inner { padding: 7px 20px; gap: 4px 14px; }
+  .cards { grid-template-columns: 1fr; }
+  .card { padding: 16px 16px 14px; }
+}
+@media (max-width: 480px) {
+  .hero-title { font-size: 22px; }
+  .hero-eyebrow { font-size: 9px; }
+  .hero-lead { font-size: 13px; }
+  .brief-number { font-size: 30px; }
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1A1815; --bg-card: #211F1B; --bg-warm: #1E1B17;
+    --text: #E8E2D8; --text-2: #9E978D; --text-3: #6F6A61;
+    --accent: #E8A07A; --accent-2: #D4886A; --accent-light: #2E2520;
+    --border: #332F29; --border-hover: #4A453D;
+    --insight-bg: #2A2220; --insight-bd: #5A4A40;
+    --shadow: none; --shadow-hover: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .hero { background: linear-gradient(180deg, #1E1B17 0%, var(--bg) 100%); }
+  .toc { background: rgba(26,24,21,0.94); }
+  .brief-card { background: #211F1B; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">UIUX Designer &middot; AIGC Daily</p>
+      <h1 class="hero-title">2026.6.14 的 AIGC 设计日报</h1>
+      <p class="hero-lead">AI 行业迎来密集信号期：Anthropic 秘密上市、Meta 收购 Manus 生变、智谱 GLM-5.2 开放百万上下文——大模型竞争格局正在重塑设计师可依赖的工具生态。</p>
+      <div class="hero-meta">
+        <span>北京时间</span>
+        <span class="hero-meta-sep"></span>
+        <span>来自 AI HOT 精选</span>
+      </div>
+    </div>
+    <aside class="brief-card">
+      <p class="brief-label">Today's Brief</p>
+      <div class="brief-number">7</div>
+      <p class="brief-unit">条精选资讯</p>
+      <div class="brief-stats">
+        <span class="brief-stat"><strong>1</strong> 模型</span>
+        <span class="brief-stat"><strong>5</strong> 行业</span>
+        <span class="brief-stat"><strong>1</strong> 观点</span>
+      </div>
+      <div class="brief-weather">
+        <span class="weather-icon">&#9728;&#65039;</span>
+        <span class="weather-info">保定 &middot; 晴 23&deg;C &middot; 东北风4级 &middot; 湿度69%</span>
+      </div>
+      <div class="brief-footer">报告窗口 06.13&ndash;06.14 &middot; 生成 10:06</div>
+    </aside>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <span class="toc-label">目录</span>
+    <a class="toc-link" href="#sec-models">模型发布</a>
+    <a class="toc-link" href="#sec-industry">行业动态</a>
+    <a class="toc-link" href="#sec-tip">技巧观点</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- 1. 模型发布/更新 -->
+  <section class="section" id="sec-models">
+    <div class="section-header">
+      <div class="section-title-cn">模型发布 / 更新</div>
+      <div class="section-title-en">Model Updates</div>
+      <p class="section-desc">多模态及生成模型的能力演进，关注对视觉设计和创意生产的潜在影响。</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-models">模型</span>
+          <span class="card-source">智谱 AI</span>
+          <span class="card-time">今天上午</span>
+        </div>
+        <h3 class="card-title">智谱 GLM-5.2 全量开放，支持 1M 上下文且下周开源</h3>
+        <p class="card-summary">GLM-5.2 是智谱迄今能力最强的模型，支持真正可用的 100 万 token 上下文，在长程任务中保持领先，被称为最强国产 Coding 模型。今晚起面向 GLM Coding Plan 用户开放。</p>
+        <p class="card-insight">百万 token 上下文意味着设计师可以一次性喂入完整设计系统文档、竞品截图集或多轮用户反馈，让 AI 在更大语境下辅助设计决策，而非碎片化对话。</p>
+        <a class="card-link" href="https://mp.weixin.qq.com/s/LDrbtLM0wiCTJorvd5GY9w" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 2. 行业动态 -->
+  <section class="section" id="sec-industry">
+    <div class="section-header">
+      <div class="section-title-cn">行业动态</div>
+      <div class="section-title-en">Industry Signals</div>
+      <p class="section-desc">AI 行业格局变化，为设计师提供宏观视角与需求预判。</p>
+      <span class="section-count">5 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">TechCrunch</span>
+          <span class="card-time">今天凌晨</span>
+        </div>
+        <h3 class="card-title">Meta 开始撤销 20 亿美元收购 Manus 的交易</h3>
+        <p class="card-summary">据 TechCrunch 报道，Meta 已开始撤销对 AI Agent 产品 Manus 的 20 亿美元收购交易，此前北京要求该交易必须反转，目前收购解除程序已启动。</p>
+        <p class="card-insight">Manus 作为 AI Agent 产品的代表，其收购风波折射出 AI 工具赛道的地缘博弈——设计师在选型 AI 工具时需关注产品的地缘政治风险和长期可用性。</p>
+        <a class="card-link" href="https://techcrunch.com/2026/06/13/meta-reportedly-moves-to-unwind-2b-manus-deal-after-beijings-demand" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">03</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">Anthropic</span>
+          <span class="card-time">今天</span>
+        </div>
+        <h3 class="card-title">Anthropic 秘密申请上市，估值 9650 亿美元</h3>
+        <p class="card-summary">Anthropic 在秘密提交 IPO 申请后，估值达到 9650 亿美元，成为史上增长最快的 AI 初创公司之一。此举将深刻影响 AI 行业的竞争格局与资本走向。</p>
+        <p class="card-insight">头部 AI 公司上市意味着更多资源投入产品化和生态建设——设计师应关注 Anthropic 上市后 Claude 系列工具的产品化加速，可能带来更成熟的 AI 设计协作工具。</p>
+        <a class="card-link" href="https://www.bloomberg.com/news/articles/2026-06-13/global-capitalism-bets-it-all-on-ai-future-that-alarms-voters" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">04</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">路透社</span>
+          <span class="card-time">今天</span>
+        </div>
+        <h3 class="card-title">扎克伯格承认 Meta AI 转型"脱轨"：裁员 10%、转岗 7000 人后组织调整过快</h3>
+        <p class="card-summary">Meta 内部备忘录显示，CEO 扎克伯格承认公司在 AI 转型中组织调整节奏过快，带来员工安置、管理跨度等问题，预计未来"几乎肯定会犯更多错误"。</p>
+        <p class="card-insight">大厂 AI 转型的阵痛是设计师的前车之鉴——组织剧烈变动期，设计团队需主动证明 AI 工具对设计效率的量化提升，避免在"降本增效"浪潮中被边缘化。</p>
+        <a class="card-link" href="https://www.ithome.com/0/963/858.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">05</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">Google</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">谷歌 Android 安全负责人因反对军事 AI 合作辞职</h3>
+        <p class="card-summary">谷歌 Android 平台安全负责人 Ren&eacute; Mayrhofer 辞职，内部告别信中指责公司"丧失道德指针"，批评谷歌悄悄放弃碳中和目标并与美国战争部签署 AI 军事合作协议。</p>
+        <p class="card-insight">AI 伦理争议持续升温——设计师在为政府、军工或敏感行业做 AI 产品时，需提前考虑伦理审查和公众舆论风险，将"负责任设计"纳入设计规范。</p>
+        <a class="card-link" href="https://www.ithome.com/0/963/888.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">06</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">Anthropic</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">Anthropic 的安全警告可能适得其反——政府已撤回其最强大 AI 模型</h3>
+        <p class="card-summary">Anthropic 对政府撤回其最强大 AI 模型表达不满，称仅基于一个狭窄的潜在越狱发现就召回已部署给数亿用户的商业模型不合理。</p>
+        <p class="card-insight">安全与可用性的博弈是 AI 产品设计的核心张力——设计师需要在"安全提示"和"用户体验"之间找到平衡点，过度警告会削弱用户信任，不足警告则带来风险。</p>
+        <a class="card-link" href="https://techcrunch.com/2026/06/12/anthropics-safety-warnings-may-have-just-backfired-the-government-has-pulled-the-plug-on-its-most-powerful-ai" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 3. 技巧与观点 -->
+  <section class="section" id="sec-tip">
+    <div class="section-header">
+      <div class="section-title-cn">技巧与观点</div>
+      <div class="section-title-en">Design Tactics</div>
+      <p class="section-desc">可落地的设计方法论、成本洞察与 AI 协作范式，关注可直接引入工作流的实践。</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">07</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">SemiAnalysis</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">SemiAnalysis 洞察 Token 经济：200 美元 AI 订阅榨出 70 倍用量</h3>
+        <p class="card-summary">SemiAnalysis 购买了 Anthropic 和 OpenAI 的全部订阅方案，模拟高强度编码任务直至触及每周上限。月费 200 美元的 Claude Max 20x 方案，按 API 价格换算可获得约 70 倍的等价用量。</p>
+        <p class="card-insight">AI 工具的成本效益分析直接影响设计团队的工具选型预算——设计师在推动团队采购 AI 工具时，可以用这类数据量化 ROI，而非凭感觉决策。</p>
+        <a class="card-link" href="https://www.ithome.com/0/963/834.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <p class="footer-text">
+    共 7 条精选资讯 &middot; 数据源：AI HOT (aihot.virxact.com) &middot; 报告窗口：2026.06.13 10:00 &ndash; 06.14 10:00 (北京时间) &middot; 生成于 2026.06.14 10:06
+  </p>
+</footer>
+
+</body>
+</html>

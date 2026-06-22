@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026.6.20 的 AIGC 设计日报</title>
+<style>
+:root {
+  --accent:       #ff3b30;
+  --accent-glow:  #ff6b5e;
+  --accent-warm:  #f5e6d3;
+  --accent-soft:  #ff3b30;
+  --bg:           #0a0a0f;
+  --bg-card:      hsla(0,0%,100%,.03);
+  --bg-card-hover:hsla(0,0%,100%,.06);
+  --text:         #f0f0f5;
+  --text-2:       rgba(240,240,245,.6);
+  --text-3:       rgba(240,240,245,.35);
+  --border:       hsla(0,0%,100%,.06);
+  --border-hover: rgba(255,59,48,.25);
+  --insight-bg:   rgba(255,59,48,.06);
+  --insight-bd:   rgba(255,59,48,.25);
+  --max-w:        1080px;
+  --radius:       18px;
+  --shadow-hover: 0 20px 60px rgba(255,59,48,.08), 0 0 30px rgba(255,59,48,.04);
+  --mono:         "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  --sans:         -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: clip;
+  position: relative;
+}
+a { color: var(--accent-glow); text-decoration: none; }
+a:hover { color: var(--accent); }
+
+/* AMBIENT BACKGROUND */
+.bg-grid {
+  position: fixed; z-index: 0; pointer-events: none;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,59,48,.015) 1px, transparent 0),
+    linear-gradient(90deg, rgba(255,59,48,.015) 1px, transparent 0);
+  background-size: 60px 60px;
+}
+.bg-orb {
+  position: fixed; z-index: 0; pointer-events: none;
+  border-radius: 50%; filter: blur(80px);
+}
+.bg-orb-1 { width: 400px; height: 400px; background: rgba(255,59,48,.04); top: 5%; left: 8%; animation: orb1 20s ease-in-out infinite; }
+.bg-orb-2 { width: 350px; height: 350px; background: rgba(180,60,200,.03); top: 55%; right: 3%; animation: orb2 25s ease-in-out infinite; }
+.bg-orb-3 { width: 280px; height: 280px; background: rgba(255,100,50,.03); bottom: 8%; left: 25%; animation: orb3 18s ease-in-out infinite; }
+@keyframes orb1 { 0%,to{transform:translate(0)} 33%{transform:translate(50px,-30px)} 66%{transform:translate(-20px,40px)} }
+@keyframes orb2 { 0%,to{transform:translate(0)} 33%{transform:translate(-40px,20px)} 66%{transform:translate(30px,-50px)} }
+@keyframes orb3 { 0%,to{transform:translate(0)} 50%{transform:translate(60px,-20px)} }
+
+/* HERO */
+.hero {
+  position: relative; z-index: 2;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.hero-glow {
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,59,48,.08) 0, transparent 70%);
+  top: 0; left: 50%; transform: translateX(-50%);
+  pointer-events: none;
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%,to { opacity: .5; transform: translateX(-50%) scale(1); }
+  50%  { opacity: 1;  transform: translateX(-50%) scale(1.15); }
+}
+.hero-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.hero-copy {
+  min-width: 0;
+  padding-bottom: 0;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 18px;
+  background: hsla(0,0%,100%,.05);
+  border: 1px solid hsla(0,0%,100%,.1);
+  border-radius: 100px;
+  font-size: 12px; color: var(--text-2); font-weight: 500;
+  margin-bottom: 20px;
+}
+.hero-title {
+  font-size: 40px; font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #ffffff 0%, #ff9e94 45%, #ff3b30 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-lead {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.7;
+  max-width: 560px;
+  margin: 0 auto 18px;
+}
+.hero-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  display: flex;
+  gap: 6px 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+.hero-meta-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Brief Bar */
+.brief-card {
+  width: 100%;
+  max-width: min(680px, 100%);
+  margin: 0 auto;
+  background: linear-gradient(135deg, hsla(0,0%,100%,.04), hsla(0,0%,100%,.01));
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 0;
+  backdrop-filter: blur(10px);
+  margin-top: 0;
+}
+.brief-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 0; margin-right: 10px; display: inline;
+}
+.brief-number {
+  font-size: 30px; font-weight: 900;
+  color: #fff; line-height: 1;
+  margin-bottom: 0; margin-right: 4px; display: inline;
+  background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.brief-unit {
+  font-size: 12px; color: var(--text-2);
+  margin-bottom: 0; display: inline;
+}
+.brief-stats {
+  display: flex; flex-wrap: wrap; gap: 2px 14px;
+  margin-left: 16px; padding-left: 16px;
+  border-left: 1px solid hsla(0,0%,100%,.08);
+}
+.brief-stat {
+  font-size: 12px; color: var(--text-2); font-weight: 500; white-space: nowrap;
+}
+.brief-stat strong {
+  color: var(--text); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.brief-weather {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: 16px; padding-left: 16px;
+  border-left: 1px solid hsla(0,0%,100%,.08);
+  font-size: 12px; color: var(--text-2); white-space: nowrap;
+}
+.weather-icon { font-size: 16px; line-height: 1; }
+.weather-info { font-variant-numeric: tabular-nums; }
+.brief-footer {
+  margin-top: 0; padding-top: 0; border-top: none;
+  font-size: 11px; color: var(--text-3); line-height: 1.5;
+  margin-left: auto; white-space: nowrap;
+}
+
+/* TOC */
+.toc {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(10,10,15,0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.toc-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 10px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  align-items: center;
+}
+.toc-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-glow);
+  margin-right: 4px;
+  font-family: var(--mono);
+}
+.toc-link {
+  font-size: 13px; font-weight: 500;
+  color: var(--text-2);
+  padding: 6px 4px;
+  border-bottom: 1.5px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap; border-radius: 2px;
+}
+.toc-link:hover {
+  color: var(--accent-glow);
+  border-bottom-color: var(--accent-glow);
+  text-decoration: none;
+}
+.toc-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* MAIN */
+.main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+}
+
+/* SECTION */
+.section {
+  margin-bottom: 56px;
+  scroll-margin-top: 70px;
+}
+@media (max-width: 768px) {
+  .section { scroll-margin-top: 120px; }
+}
+.section-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.section-label-row {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--accent-glow);
+  margin-bottom: 14px;
+}
+.section-label-line {
+  width: 28px; height: 1px;
+  background: rgba(255,59,48,.3);
+}
+.section-title-cn {
+  font-size: 28px; font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+.section-desc {
+  font-size: 13px; color: var(--text-2);
+  margin-top: 12px; line-height: 1.65;
+  max-width: 620px; margin-left: auto; margin-right: auto;
+}
+.section-count {
+  display: inline-block;
+  font-size: 11px; font-weight: 600;
+  color: var(--accent-glow);
+  background: rgba(255,59,48,.1);
+  padding: 3px 12px; border-radius: 100px;
+  margin-top: 10px;
+}
+
+/* CARDS */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 860px) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+}
+
+.card {
+  background: linear-gradient(135deg, hsla(0,0%,100%,.04), hsla(0,0%,100%,.01));
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 24px 26px 22px;
+  transition: all .5s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeUp 0.5s ease both;
+  opacity: 0;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+.card::before {
+  content: "";
+  position: absolute; inset: 0; border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(255,59,48,.06), transparent 60%);
+  opacity: 0; transition: opacity .5s;
+  pointer-events: none;
+}
+.card::after {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  opacity: 0; transition: opacity .4s;
+  pointer-events: none;
+}
+.card:hover::before { opacity: 1; }
+.card:hover::after { opacity: 1; }
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-6px);
+}
+
+.card:nth-child(1) { animation-delay: 0.04s; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.12s; }
+.card:nth-child(4) { animation-delay: 0.16s; }
+.card:nth-child(5) { animation-delay: 0.2s; }
+.card:nth-child(6) { animation-delay: 0.24s; }
+.card:nth-child(7) { animation-delay: 0.28s; }
+.card:nth-child(8) { animation-delay: 0.32s; }
+.card:nth-child(9) { animation-delay: 0.36s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; opacity: 1; }
+  .card-link::after { transition: none; }
+}
+
+.card-top {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.card-num {
+  font-family: var(--sans); font-size: 13px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+  color: #fff;
+  letter-spacing: 0;
+}
+.card-section-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.tag-models  { background: rgba(255,59,48,.1);  color: #ff6b5e; }
+.tag-products{ background: rgba(0,180,255,.1);  color: #00b4ff; }
+.tag-industry{ background: rgba(255,165,0,.1);  color: #ffa500; }
+.tag-paper   { background: rgba(123,47,255,.1);  color: #7b2fff; }
+.tag-tip     { background: rgba(74,222,128,.1);  color: #4ade80; }
+
+.card-source {
+  font-size: 11px; color: var(--text-3); font-weight: 500;
+}
+.card-time {
+  font-size: 11px; color: var(--text-3);
+  margin-left: auto; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.card-title {
+  font-size: 15px; font-weight: 700;
+  color: #fff; line-height: 1.5; letter-spacing: 0.01em;
+}
+.card-summary {
+  font-size: 13px; color: var(--text-2); line-height: 1.65;
+}
+.card-insight {
+  font-size: 12px; color: var(--accent-glow);
+  background: var(--insight-bg);
+  border-left: 2.5px solid var(--insight-bd);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  line-height: 1.6;
+}
+.card-link {
+  font-size: 13px; font-weight: 600;
+  color: var(--accent-glow);
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: auto; padding: 8px 4px;
+  transition: color 0.2s, gap 0.2s;
+  border-radius: 4px;
+  cursor: pointer; text-decoration: none;
+}
+.card-link:hover { color: var(--accent); gap: 8px; }
+.card-link:active { opacity: 0.6; }
+.card-link:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px;
+}
+.card-link::after {
+  content: "\2192"; font-size: 12px;
+  transition: transform 0.2s; display: inline-block;
+}
+.card-link:hover::after { transform: translateX(3px); }
+
+/* FOOTER */
+.footer {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 36px 32px 64px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.footer-text {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.8;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .hero-inner { padding: 36px 20px 12px; gap: 14px; }
+  .hero-title { font-size: 28px; letter-spacing: 0.02em; }
+  .brief-card {
+    flex-direction: column; align-items: flex-start;
+    padding: 14px 18px; gap: 8px 0;
+  }
+  .brief-stats {
+    margin-left: 0; padding-left: 0; border-left: none;
+    padding-top: 10px; border-top: 1px solid hsla(0,0%,100%,.08); width: 100%;
+  }
+  .brief-weather {
+    margin-left: 0; padding-left: 0; border-left: none;
+    padding-top: 10px; border-top: 1px solid hsla(0,0%,100%,.08); width: 100%;
+  }
+  .brief-footer { margin-left: 0; width: 100%; }
+  .main { padding: 36px 20px 56px; }
+  .toc-inner { padding: 8px 20px; gap: 4px 16px; }
+  .cards { grid-template-columns: 1fr; }
+  .card { padding: 18px 18px 16px; }
+  .section-header { margin-bottom: 28px; }
+  .section-title-cn { font-size: 22px; }
+}
+@media (max-width: 480px) {
+  .hero-title { font-size: 22px; }
+  .hero-lead { font-size: 13px; }
+  .brief-number { font-size: 34px; }
+}
+
+/* FLOATING AI DECORATIVE ICONS */
+.float-icon {
+  position: fixed; z-index: 0; pointer-events: none;
+  opacity: 0.12;
+  transition: opacity 0.6s ease;
+}
+.float-icon:hover { opacity: 0.35; }
+
+.float-spark-1 { top: 8%;  left: 12%;  animation: floatA 14s ease-in-out infinite; }
+.float-spark-2 { top: 18%; right: 8%;   animation: floatB 16s ease-in-out infinite; opacity: 0.08; }
+.float-spark-3 { top: 40%; left: 5%;   animation: floatC 18s ease-in-out infinite; opacity: 0.09; }
+.float-spark-4 { top: 65%; right: 10%; animation: floatD 15s ease-in-out infinite; opacity: 0.10; }
+.float-spark-5 { top: 78%; left: 40%;  animation: floatA 20s ease-in-out infinite; opacity: 0.07; }
+.float-spark-6 { top: 30%; right: 18%; animation: floatB 17s ease-in-out infinite; opacity: 0.09; }
+
+.float-node-1 { top: 22%; left: 20%; animation: floatC 12s ease-in-out infinite; opacity: 0.10; }
+.float-node-2 { top: 52%; right: 15%; animation: floatD 19s ease-in-out infinite; opacity: 0.08; }
+.float-node-3 { top: 85%; left: 10%; animation: floatA 22s ease-in-out infinite; opacity: 0.09; }
+
+.float-bracket-1 { top: 12%; right: 22%; animation: floatB 13s ease-in-out infinite; opacity: 0.06; }
+.float-bracket-2 { top: 70%; left: 18%; animation: floatD 16s ease-in-out infinite; opacity: 0.07; }
+
+@keyframes floatA { 0%,to{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(-18px) rotate(6deg)} 66%{transform:translateY(8px) rotate(-4deg)} }
+@keyframes floatB { 0%,to{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(12px) rotate(-5deg)} 66%{transform:translateY(-14px) rotate(3deg)} }
+@keyframes floatC { 0%,to{transform:translateY(0) scale(1)} 50%{transform:translateY(-10px) scale(1.15)} }
+@keyframes floatD { 0%,to{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+/* SECTION DECORATIVE ICON */
+.section-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 10px; opacity: 0.6;
+}
+.section-icon svg { width: 36px; height: 36px; }
+
+/* EMPTY SECTION PLACEHOLDER */
+.empty-card {
+  background: linear-gradient(135deg, hsla(0,0%,100%,.02), hsla(0,0%,100%,.01));
+  border: 1px dashed hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 40px 24px;
+  text-align: center;
+  animation: fadeUp 0.5s ease both;
+  opacity: 0;
+  grid-column: 1 / -1;
+}
+.empty-icon {
+  font-size: 28px; margin-bottom: 10px;
+  opacity: 0.25;
+}
+.empty-text {
+  font-size: 13px; color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+/* MODAL */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  justify-content: center; align-items: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: #1a1a24;
+  border: 1px solid hsla(0,0%,100%,.12);
+  border-radius: 16px;
+  padding: 28px 32px 24px;
+  max-width: 520px; width: 90%;
+  position: relative;
+  box-shadow: 0 24px 80px rgba(0,0,0,.5);
+}
+.modal-title {
+  font-size: 15px; font-weight: 700; color: #fff;
+  margin-bottom: 16px;
+}
+.modal-url {
+  font-family: var(--mono);
+  font-size: 12px; color: var(--accent-glow);
+  background: hsla(0,0%,100%,.05);
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  line-height: 1.6;
+}
+.modal-hint {
+  font-size: 11px; color: var(--text-3);
+  margin-top: 12px; line-height: 1.6;
+}
+.modal-close {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: none; color: var(--text-3);
+  font-size: 20px; cursor: pointer; padding: 4px;
+  line-height: 1;
+}
+.modal-close:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- AMBIENT BACKGROUND -->
+<div class="bg-grid"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<!-- FLOATING AI DECORATIVE ICONS -->
+<svg class="float-icon float-spark-1" width="36" height="36" viewBox="0 0 36 36"><path d="M18 0l2.5 10.5L18 6l-2.5 4.5zM18 36l-2.5-10.5L18 30l2.5-4.5zM0 18l10.5-2.5L6 18l4.5 2.5zM36 18L25.5 15.5 30 18l-4.5 2.5z" fill="var(--accent-glow)"/><circle cx="10" cy="10" r="1.5" fill="var(--accent-glow)" opacity="0.5"/><circle cx="26" cy="8" r="1" fill="var(--accent-glow)" opacity="0.4"/><circle cx="8" cy="26" r="1" fill="var(--accent-glow)" opacity="0.4"/><circle cx="28" cy="28" r="1.5" fill="var(--accent-glow)" opacity="0.5"/></svg>
+<svg class="float-icon float-spark-2" width="28" height="28" viewBox="0 0 28 28"><path d="M14 2l1.5 8L14 6l-1.5 4zM14 26l-1.5-8L14 22l1.5-4zM2 14l8-1.5L6 14l4 1.5zM26 14l-8-1.5 4 1.5-4 1.5z" fill="var(--accent-glow)"/></svg>
+<svg class="float-icon float-spark-3" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="2" fill="var(--accent-glow)"/><circle cx="16" cy="16" r="6" fill="none" stroke="var(--accent-glow)" stroke-width="0.8" opacity="0.6"/><circle cx="16" cy="16" r="10" fill="none" stroke="var(--accent-glow)" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-spark-4" width="24" height="24" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" fill="none" stroke="var(--accent-glow)" stroke-width="1.2" opacity="0.7"/><rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="var(--accent-glow)" stroke-width="0.6" opacity="0.35"/></svg>
+<svg class="float-icon float-spark-5" width="44" height="44" viewBox="0 0 44 44"><path d="M22 4l3 13L22 8l-3 9zM22 40l-3-13 3 9 3-9zM4 22l13-3L8 22l9 3zM40 22L27 19l9 3-9 3z" fill="var(--accent-glow)"/></svg>
+<svg class="float-icon float-spark-6" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="1.5" fill="var(--accent-glow)"/><line x1="5" y1="10" x2="9" y2="10" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="11" y1="10" x2="15" y2="10" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="10" y1="5" x2="10" y2="9" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="10" y1="11" x2="10" y2="15" stroke="var(--accent-glow)" stroke-width="0.6"/></svg>
+<svg class="float-icon float-node-1" width="48" height="48" viewBox="0 0 48 48"><circle cx="12" cy="12" r="2.5" fill="var(--accent-glow)"/><circle cx="36" cy="14" r="3" fill="#00b4ff"/><circle cx="24" cy="34" r="2" fill="#7b2fff"/><line x1="14" y1="12" x2="34" y2="14" stroke="var(--accent-glow)" stroke-width="0.6" opacity="0.4"/><line x1="34" y1="14" x2="24" y2="34" stroke="#00b4ff" stroke-width="0.5" opacity="0.3"/><line x1="14" y1="12" x2="24" y2="34" stroke="#7b2fff" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-node-2" width="40" height="40" viewBox="0 0 40 40"><circle cx="8" cy="20" r="2" fill="#4ade80"/><circle cx="20" cy="8" r="2.5" fill="var(--accent-glow)"/><circle cx="32" cy="20" r="2" fill="#00b4ff"/><circle cx="20" cy="32" r="2" fill="#ffa500"/><line x1="20" y1="8" x2="8" y2="20" stroke="#4ade80" stroke-width="0.5" opacity="0.3"/><line x1="20" y1="8" x2="32" y2="20" stroke="var(--accent-glow)" stroke-width="0.5" opacity="0.3"/><line x1="8" y1="20" x2="20" y2="32" stroke="#00b4ff" stroke-width="0.5" opacity="0.3"/><line x1="32" y1="20" x2="20" y2="32" stroke="#ffa500" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-node-3" width="36" height="36" viewBox="0 0 36 36"><polygon points="18,3 31,13 26,30 10,30 5,13" fill="none" stroke="var(--accent-glow)" stroke-width="0.8" opacity="0.5"/><circle cx="18" cy="3" r="2" fill="var(--accent-glow)"/><circle cx="31" cy="13" r="1.8" fill="#00b4ff"/><circle cx="26" cy="30" r="1.8" fill="#7b2fff"/><circle cx="10" cy="30" r="1.8" fill="#4ade80"/><circle cx="5" cy="13" r="1.8" fill="#ffa500"/></svg>
+<svg class="float-icon float-bracket-1" width="60" height="30" viewBox="0 0 60 30"><path d="M20 3L8 15l12 12" fill="none" stroke="var(--accent-glow)" stroke-width="1" stroke-linecap="round" opacity="0.5"/><path d="M40 3l12 12-12 12" fill="none" stroke="var(--accent-glow)" stroke-width="1" stroke-linecap="round" opacity="0.5"/><circle cx="30" cy="15" r="2" fill="#4ade80" opacity="0.6"/></svg>
+<svg class="float-icon float-bracket-2" width="52" height="26" viewBox="0 0 52 26"><path d="M16 2l-8 11 8 11" fill="none" stroke="#00b4ff" stroke-width="0.8" stroke-linecap="round" opacity="0.4"/><path d="M36 2l8 11-8 11" fill="none" stroke="#00b4ff" stroke-width="0.8" stroke-linecap="round" opacity="0.4"/><rect x="22" y="9" width="8" height="6" rx="1" fill="none" stroke="var(--accent-glow)" stroke-width="0.7" opacity="0.45"/></svg>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="hero-badge">
+        <span>&#127912;</span> <span>AI + Design</span>
+      </div>
+      <h1 class="hero-title">2026.6.20 的 AIGC 设计日报</h1>
+      <p class="hero-lead">轻量级文生图模型258M参数就能打、Humanize PPT让演示回归演讲本身、优设实战Codex还原Figma页面、美图八款产品讲清AI设计工具进化</p>
+      <div class="hero-meta">
+        <span>北京时间 &middot; 6月20日</span>
+        <span class="hero-meta-sep"></span>
+        <span>AI HOT + 优设网 + 量子位 + 极客公园</span>
+      </div>
+    </div>
+    <aside class="brief-card">
+      <p class="brief-label">Today's Brief</p>
+      <div class="brief-number">11</div>
+      <p class="brief-unit">条精选资讯</p>
+      <div class="brief-stats">
+        <span class="brief-stat"><strong>1</strong> 模型</span>
+        <span class="brief-stat"><strong>2</strong> 产品</span>
+        <span class="brief-stat"><strong>2</strong> 行业</span>
+        <span class="brief-stat"><strong>0</strong> 论文</span>
+        <span class="brief-stat"><strong>6</strong> 观点</span>
+      </div>
+      <div class="brief-weather">
+        <span class="weather-icon">&#9729;&#65039;</span>
+        <span class="weather-info">保定 &middot; 雾 22&deg;C &middot; 南风1级 &middot; 湿度84%</span>
+      </div>
+      <div class="brief-footer">报告窗口 06.19&ndash;06.20 &middot; 生成 07:50</div>
+    </aside>
+  </div>
+</header>
+
+<!-- TOC -->
+<nav class="toc">
+  <div class="toc-inner">
+    <span class="toc-label">目录</span>
+    <a class="toc-link" href="#sec-products">产品更新</a>
+    <a class="toc-link" href="#sec-industry">行业动态</a>
+    <a class="toc-link" href="#sec-tip">技巧观点</a>
+    <a class="toc-link" href="#sec-models">模型发布</a>
+    <a class="toc-link" href="#sec-paper">论文研究</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- ====== 产品更新 (2条) ====== -->
+  <section class="section" id="sec-products">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><rect x="4" y="8" width="28" height="22" rx="3" fill="none" stroke="var(--accent-glow)" stroke-width="1.2"/><rect x="10" y="13" width="16" height="12" rx="2" fill="rgba(255,59,48,.08)"/><circle cx="7" cy="12" r="1" fill="#00b4ff"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> PRODUCTS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">产品更新</div>
+      <p class="section-desc">AIGC 设计工具与创意产品的新功能、新版本</p>
+      <span class="section-count">2 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">X：宝玉</span>
+          <span class="card-time">昨天 02:43</span>
+        </div>
+        <h3 class="card-title">baoyu-design Skill 迭代：修复导出样式与渐变丢失，支持AI配图导出PPTX</h3>
+        <p class="card-summary">宝玉分享 baoyu-design Skill 的迭代：用户测试发现导出样式表未铺满整页、渐变色丢失，通过 Agent 分析修复后效果改善，支持AI生图配图并导出PPTX。</p>
+        <p class="card-insight">Skill生态进入"用户测试→发现问题→Agent修复"的正向循环，设计工具的迭代速度正在被AI加速</p>
+        <a class="card-link" href="https://x.com/dotey/status/2068042001895809420" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">公众号：卡尔的AI沃茨</span>
+          <span class="card-time">昨天 17:48</span>
+        </div>
+        <h3 class="card-title">Humanize PPT v0.9：为演讲而生的开源PPT Skill</h3>
+        <p class="card-summary">专为演讲场景设计的PPT Skill，通过AST逻辑重编排大纲，渲染前输出预览页，支持演讲模式（S键显示备注、ESC键全局索引跳页），已开源。</p>
+        <p class="card-insight">AI生成PPT的思路从"做幻灯片"转向"辅助演讲"，对设计师来说这是从视觉输出到表达体验的升级</p>
+        <a class="card-link" href="https://mp.weixin.qq.com/s/rGoYnUcBRkfRKQPbIaawyg" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ====== 行业动态 (2条) ====== -->
+  <section class="section" id="sec-industry">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="12" fill="none" stroke="#ffa500" stroke-width="1"/><line x1="18" y1="6" x2="18" y2="10" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="26" x2="18" y2="30" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="6" y1="18" x2="10" y2="18" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="26" y1="18" x2="30" y2="18" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> INDUSTRY <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">行业动态</div>
+      <p class="section-desc">AI 与设计领域的重要行业事件与趋势</p>
+      <span class="section-count">2 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">X：Rohan Paul</span>
+          <span class="card-time">昨天 05:50</span>
+        </div>
+        <h3 class="card-title">Figure 机器人数首超人类员工</h3>
+        <p class="card-summary">Figure 机器人数量首次超过人类员工数量，标志着实体AI从理论验证进入规模化部署阶段，制造业和仓储场景率先落地。</p>
+        <p class="card-insight">实体AI规模化的拐点已至，设计师需要关注机器人交互界面和人机协作体验的新设计范式</p>
+        <a class="card-link" href="https://x.com/rohanpaul_ai/status/2068089038213693800" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">X：Demis Hassabis</span>
+          <span class="card-time">昨天 00:07</span>
+        </div>
+        <h3 class="card-title">AlphaFold 负责人 John Jumper 离职 DeepMind，加入 Anthropic</h3>
+        <p class="card-summary">AlphaFold 团队负责人 John Jumper 在 DeepMind 工作近9年后离职，将加入 Anthropic，DeepMind CEO Hassabis 称其"改变了世界"。</p>
+        <p class="card-insight">顶级AI科学家向Anthropic流动，意味着Claude生态可能迎来科学计算领域的突破，设计师可关注新的AI能力边界</p>
+        <a class="card-link" href="https://x.com/demishassabis/status/2068002732250640603" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ====== 技巧观点 (6条) ====== -->
+  <section class="section" id="sec-tip">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><path d="M6 24l10-14 8 10 6-8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="24" r="2.5" fill="#4ade80" opacity="0.5"/><circle cx="30" cy="12" r="2" fill="var(--accent-glow)" opacity="0.5"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> INSIGHTS &amp; TIPS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">技巧观点</div>
+      <p class="section-desc">设计师实用技巧、行业洞察与方法论</p>
+      <span class="section-count">6 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">优设网</span>
+          <span class="card-time">今天</span>
+        </div>
+        <h3 class="card-title">5个实操技巧！用 Codex 还原 Figma 页面</h3>
+        <p class="card-summary">优设分享用 OpenAI Codex 代理从 Figma 设计稿还原前端页面的5个实操技巧，涵盖布局、样式、响应式等关键环节。</p>
+        <p class="card-insight">设计稿到代码的转化链路正在被AI代理缩短，设计师掌握这套流程能大幅提升与开发的协作效率</p>
+        <a class="card-link" href="https://www.uisdc.com/group/674117.html" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">优设网</span>
+          <span class="card-time">今天</span>
+        </div>
+        <h3 class="card-title">6月爆火的提示词来了！一句话生成超可爱的插画风</h3>
+        <p class="card-summary">优设整理6月最火的文生图提示词，一句话即可生成插画风格图片，适合社交媒体和品牌视觉快速出图。</p>
+        <p class="card-insight">提示词正在成为设计师的新"笔刷"，掌握高质量prompt模板是AIGC时代的基本功</p>
+        <a class="card-link" href="https://www.uisdc.com/group/674169.html" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">03</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">优设网</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">巧用独立 Tabbar 悬浮样式，支付宝平稳过渡 AI 新版本</h3>
+        <p class="card-summary">分析支付宝如何通过独立Tabbar悬浮样式设计，在不破坏用户习惯的前提下平稳引入AI功能版本，是大体量产品的渐进式AI化范本。</p>
+        <p class="card-insight">AI功能嵌入成熟产品时，渐进式交互设计比颠覆式改版更考验设计师的克制力与判断力</p>
+        <a class="card-link" href="https://www.uisdc.com/hunter/0221674135.html" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">04</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">量子位</span>
+          <span class="card-time">前天</span>
+        </div>
+        <h3 class="card-title">18年前不让你苦修PS的美图，这次不让你苦修AI了</h3>
+        <p class="card-summary">美图用八款产品讲述从"不让你苦修PS"到"不让你苦修AI"的变化，展示AI如何降低图片编辑门槛，让普通人也能轻松创作。</p>
+        <p class="card-insight">AI设计工具的终极目标不是替代设计师，而是让非设计人员也能自助完成80%的视觉需求</p>
+        <a class="card-link" href="https://www.qbitai.com/2026/06/436517.html" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">05</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">X：Elvis Saravia</span>
+          <span class="card-time">昨天 20:48</span>
+        </div>
+        <h3 class="card-title">/youtube-notetaker：YT 视频转 Artifacts</h3>
+        <p class="card-summary">DAIR.AI 发布 /youtube-notetaker Skill，可从 YouTube 视频自动生成结构化笔记和 Artifacts，捕获幻灯片、转录内容。</p>
+        <p class="card-insight">视频内容→结构化设计资产的自动化链路，设计师可以快速从竞品视频中提取设计参考和知识</p>
+        <a class="card-link" href="https://x.com/omarsar0/status/2067952726282031411" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">06</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">Nathan Lambert</span>
+          <span class="card-time">昨天 21:02</span>
+        </div>
+        <h3 class="card-title">禁止开源AI将是一个错误</h3>
+        <p class="card-summary">Nathan Lambert 撰文指出开源AI已支撑全球90%软件并创造8万亿美元经济价值，禁止开源将削弱创新与竞争，开源透明性使其更安全。</p>
+        <p class="card-insight">开源AI生态是设计师获取免费高质量模型和工具的基石，政策走向直接影响AIGC工具链的成本与可用性</p>
+        <a class="card-link" href="https://www.interconnects.ai/p/banning-open-source-ai-would-be-a" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ====== 模型发布 (1条) ====== -->
+  <section class="section" id="sec-models">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="10" fill="none" stroke="var(--accent-glow)" stroke-width="1.2"/><circle cx="18" cy="18" r="4" fill="rgba(255,59,48,.1)"/><line x1="18" y1="3" x2="18" y2="8" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="28" x2="18" y2="33" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="18" x2="8" y2="18" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="28" y1="18" x2="33" y2="18" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> MODELS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">模型发布</div>
+      <p class="section-desc">面向设计师的新模型与多模态能力更新</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-models">模型</span>
+          <span class="card-source">量子位</span>
+          <span class="card-time">前天</span>
+        </div>
+        <h3 class="card-title">何恺明组新作：文生图，258M 参数就够了</h3>
+        <p class="card-summary">何恺明团队发表新论文，五位作者中四位是本科生，提出仅258M参数的文生图模型即可达到有竞争力的效果，大幅降低图像生成模型的门槛。</p>
+        <p class="card-insight">轻量化文生图模型意味着未来设计师可以在本地/移动端直接运行AI生图，摆脱云端依赖和成本压力</p>
+        <a class="card-link" href="https://www.qbitai.com/2026/06/436518.html" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- ====== 论文研究 (0条) ====== -->
+  <section class="section" id="sec-paper">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="24" rx="2" fill="none" stroke="#7b2fff" stroke-width="1.2"/><line x1="10" y1="13" x2="26" y2="13" stroke="#7b2fff" stroke-width="0.7" opacity="0.5"/><line x1="10" y1="17" x2="22" y2="17" stroke="#7b2fff" stroke-width="0.5" opacity="0.35"/><line x1="10" y1="21" x2="24" y2="21" stroke="#7b2fff" stroke-width="0.5" opacity="0.35"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> PAPERS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">论文研究</div>
+      <p class="section-desc">设计与创意领域的前沿学术研究</p>
+      <span class="section-count">0 条</span>
+    </div>
+    <div class="cards">
+      <div class="empty-card">
+        <div class="empty-icon">&#129302;</div>
+        <p class="empty-text">今日暂无 &middot; 设计相关论文研究</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p class="footer-text">
+    共 11 条精选资讯 &middot; 数据源：AI HOT + 优设网 + 量子位 + 极客公园 &middot; 报告窗口：2026.06.19 07:50 &ndash; 2026.06.20 07:50 (北京时间) &middot; 生成于 2026.06.20 07:50
+  </p>
+</footer>
+
+<!-- MODAL for WeChat Mini Program webview -->
+<div class="modal-overlay" id="linkModal">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div class="modal-title">&#9989; 链接已复制到剪贴板</div>
+    <div class="modal-url" id="modalUrl"></div>
+    <p class="modal-hint">长按上方链接可选择复制 / 请在浏览器中打开此链接</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modal = document.getElementById('linkModal');
+  var modalUrl = document.getElementById('modalUrl');
+  var modalClose = document.getElementById('modalClose');
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function() { fallbackCopy(text); });
+    } else { fallbackCopy(text); }
+    function fallbackCopy(t) {
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+    }
+  }
+
+  function showModal(url) {
+    modalUrl.textContent = url;
+    modal.classList.add('active');
+    copyToClipboard(url);
+  }
+
+  modalClose.addEventListener('click', function() { modal.classList.remove('active'); });
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.classList.remove('active'); });
+
+  document.querySelectorAll('.card-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      var url = this.getAttribute('href');
+      if (!url) return;
+      e.preventDefault();
+      var opened = false;
+      try { var w = window.open(url, '_blank'); if (w) opened = true; } catch(ex) {}
+      if (!opened) { showModal(url); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

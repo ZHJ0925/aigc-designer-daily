@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026.6.19 的 AIGC 设计日报</title>
+<style>
+:root {
+  --accent:       #ff3b30;
+  --accent-glow:  #ff6b5e;
+  --accent-warm:  #f5e6d3;
+  --accent-soft:  #ff3b30;
+  --bg:           #0a0a0f;
+  --bg-card:      hsla(0,0%,100%,.03);
+  --bg-card-hover:hsla(0,0%,100%,.06);
+  --text:         #f0f0f5;
+  --text-2:       rgba(240,240,245,.6);
+  --text-3:       rgba(240,240,245,.35);
+  --border:       hsla(0,0%,100%,.06);
+  --border-hover: rgba(255,59,48,.25);
+  --insight-bg:   rgba(255,59,48,.06);
+  --insight-bd:   rgba(255,59,48,.25);
+  --max-w:        1080px;
+  --radius:       18px;
+  --shadow-hover: 0 20px 60px rgba(255,59,48,.08), 0 0 30px rgba(255,59,48,.04);
+  --mono:         "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  --sans:         -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: clip;
+  position: relative;
+}
+a { color: var(--accent-glow); text-decoration: none; }
+a:hover { color: var(--accent); }
+
+/* ═══════════ AMBIENT BACKGROUND ═══════════ */
+.bg-grid {
+  position: fixed; z-index: 0; pointer-events: none;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,59,48,.015) 1px, transparent 0),
+    linear-gradient(90deg, rgba(255,59,48,.015) 1px, transparent 0);
+  background-size: 60px 60px;
+}
+.bg-orb {
+  position: fixed; z-index: 0; pointer-events: none;
+  border-radius: 50%; filter: blur(80px);
+}
+.bg-orb-1 { width: 400px; height: 400px; background: rgba(255,59,48,.04); top: 5%; left: 8%; animation: orb1 20s ease-in-out infinite; }
+.bg-orb-2 { width: 350px; height: 350px; background: rgba(180,60,200,.03); top: 55%; right: 3%; animation: orb2 25s ease-in-out infinite; }
+.bg-orb-3 { width: 280px; height: 280px; background: rgba(255,100,50,.03); bottom: 8%; left: 25%; animation: orb3 18s ease-in-out infinite; }
+@keyframes orb1 { 0%,to{transform:translate(0)} 33%{transform:translate(50px,-30px)} 66%{transform:translate(-20px,40px)} }
+@keyframes orb2 { 0%,to{transform:translate(0)} 33%{transform:translate(-40px,20px)} 66%{transform:translate(30px,-50px)} }
+@keyframes orb3 { 0%,to{transform:translate(0)} 50%{transform:translate(60px,-20px)} }
+
+/* ═══════════ HERO ═══════════ */
+.hero {
+  position: relative; z-index: 2;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.hero-glow {
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,59,48,.08) 0, transparent 70%);
+  top: 0; left: 50%; transform: translateX(-50%);
+  pointer-events: none;
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+@keyframes pulseGlow {
+  0%,to { opacity: .5; transform: translateX(-50%) scale(1); }
+  50%  { opacity: 1;  transform: translateX(-50%) scale(1.15); }
+}
+.hero-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.hero-copy {
+  min-width: 0;
+  padding-bottom: 0;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 18px;
+  background: hsla(0,0%,100%,.05);
+  border: 1px solid hsla(0,0%,100%,.1);
+  border-radius: 100px;
+  font-size: 12px; color: var(--text-2); font-weight: 500;
+  margin-bottom: 20px;
+}
+.hero-title {
+  font-size: 40px; font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #ffffff 0%, #ff9e94 45%, #ff3b30 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-lead {
+  font-size: 15px;
+  color: var(--text-2);
+  line-height: 1.7;
+  max-width: 560px;
+  margin: 0 auto 18px;
+}
+.hero-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  display: flex;
+  gap: 6px 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+.hero-meta-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Brief Bar (horizontal) ── */
+.brief-card {
+  width: 100%;
+  max-width: min(680px, 100%);
+  margin: 0 auto;
+  background: linear-gradient(135deg, hsla(0,0%,100%,.04), hsla(0,0%,100%,.01));
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 0;
+  backdrop-filter: blur(10px);
+  margin-top: 0;
+}
+.brief-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 0; margin-right: 10px; display: inline;
+}
+.brief-number {
+  font-size: 30px; font-weight: 900;
+  color: #fff; line-height: 1;
+  margin-bottom: 0; margin-right: 4px; display: inline;
+  background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.brief-unit {
+  font-size: 12px; color: var(--text-2);
+  margin-bottom: 0; display: inline;
+}
+.brief-stats {
+  display: flex; flex-wrap: wrap; gap: 2px 14px;
+  margin-left: 16px; padding-left: 16px;
+  border-left: 1px solid hsla(0,0%,100%,.08);
+}
+.brief-stat {
+  font-size: 12px; color: var(--text-2); font-weight: 500; white-space: nowrap;
+}
+.brief-stat strong {
+  color: var(--text); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.brief-weather {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: 16px; padding-left: 16px;
+  border-left: 1px solid hsla(0,0%,100%,.08);
+  font-size: 12px; color: var(--text-2); white-space: nowrap;
+}
+.weather-icon { font-size: 16px; line-height: 1; }
+.weather-info { font-variant-numeric: tabular-nums; }
+.brief-footer {
+  margin-top: 0; padding-top: 0; border-top: none;
+  font-size: 11px; color: var(--text-3); line-height: 1.5;
+  margin-left: auto; white-space: nowrap;
+}
+
+/* ═══════════ TOC ═══════════ */
+.toc {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(10,10,15,0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.toc-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 10px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  align-items: center;
+}
+.toc-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-glow);
+  margin-right: 4px;
+  font-family: var(--mono);
+}
+.toc-link {
+  font-size: 13px; font-weight: 500;
+  color: var(--text-2);
+  padding: 6px 4px;
+  border-bottom: 1.5px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap; border-radius: 2px;
+}
+.toc-link:hover {
+  color: var(--accent-glow);
+  border-bottom-color: var(--accent-glow);
+  text-decoration: none;
+}
+.toc-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ═══════════ MAIN ═══════════ */
+.main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+}
+
+/* ═══════════ SECTION ═══════════ */
+.section {
+  margin-bottom: 56px;
+  scroll-margin-top: 70px;
+}
+@media (max-width: 768px) {
+  .section { scroll-margin-top: 120px; }
+}
+.section-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.section-label-row {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--accent-glow);
+  margin-bottom: 14px;
+}
+.section-label-line {
+  width: 28px; height: 1px;
+  background: rgba(255,59,48,.3);
+}
+.section-title-cn {
+  font-size: 28px; font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+.section-desc {
+  font-size: 13px; color: var(--text-2);
+  margin-top: 12px; line-height: 1.65;
+  max-width: 620px; margin-left: auto; margin-right: auto;
+}
+.section-count {
+  display: inline-block;
+  font-size: 11px; font-weight: 600;
+  color: var(--accent-glow);
+  background: rgba(255,59,48,.1);
+  padding: 3px 12px; border-radius: 100px;
+  margin-top: 10px;
+}
+
+/* ═══════════ CARDS ═══════════ */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 860px) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+}
+
+.card {
+  background: linear-gradient(135deg, hsla(0,0%,100%,.04), hsla(0,0%,100%,.01));
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 24px 26px 22px;
+  transition: all .5s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fadeUp 0.5s ease both;
+  opacity: 0;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+.card::before {
+  content: "";
+  position: absolute; inset: 0; border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(255,59,48,.06), transparent 60%);
+  opacity: 0; transition: opacity .5s;
+  pointer-events: none;
+}
+.card::after {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+  opacity: 0; transition: opacity .4s;
+  pointer-events: none;
+}
+.card:hover::before { opacity: 1; }
+.card:hover::after { opacity: 1; }
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-6px);
+}
+
+.card:nth-child(1) { animation-delay: 0.04s; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.12s; }
+.card:nth-child(4) { animation-delay: 0.16s; }
+.card:nth-child(5) { animation-delay: 0.2s; }
+.card:nth-child(6) { animation-delay: 0.24s; }
+.card:nth-child(7) { animation-delay: 0.28s; }
+.card:nth-child(8) { animation-delay: 0.32s; }
+.card:nth-child(9) { animation-delay: 0.36s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; opacity: 1; }
+  .card-link::after { transition: none; }
+}
+
+.card-top {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+}
+.card-num {
+  font-family: var(--sans); font-size: 13px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+  color: #fff;
+  letter-spacing: 0;
+}
+.card-section-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.tag-models  { background: rgba(255,59,48,.1);  color: #ff6b5e; }
+.tag-products{ background: rgba(0,180,255,.1);  color: #00b4ff; }
+.tag-industry{ background: rgba(255,165,0,.1);  color: #ffa500; }
+.tag-paper   { background: rgba(123,47,255,.1);  color: #7b2fff; }
+.tag-tip     { background: rgba(74,222,128,.1);  color: #4ade80; }
+
+.card-source {
+  font-size: 11px; color: var(--text-3); font-weight: 500;
+}
+.card-time {
+  font-size: 11px; color: var(--text-3);
+  margin-left: auto; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.card-title {
+  font-size: 15px; font-weight: 700;
+  color: #fff; line-height: 1.5; letter-spacing: 0.01em;
+}
+.card-summary {
+  font-size: 13px; color: var(--text-2); line-height: 1.65;
+}
+.card-insight {
+  font-size: 12px; color: var(--accent-glow);
+  background: var(--insight-bg);
+  border-left: 2.5px solid var(--insight-bd);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  line-height: 1.6;
+}
+.card-link {
+  font-size: 13px; font-weight: 600;
+  color: var(--accent-glow);
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: auto; padding: 8px 4px;
+  transition: color 0.2s, gap 0.2s;
+  border-radius: 4px;
+  cursor: pointer; text-decoration: none;
+}
+.card-link:hover { color: var(--accent); gap: 8px; }
+.card-link:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px;
+}
+.card-link::after {
+  content: "→"; font-size: 12px;
+  transition: transform 0.2s; display: inline-block;
+}
+.card-link:hover::after { transform: translateX(3px); }
+.card-link:active { opacity: 0.6; }
+
+/* ═══════════ FOOTER ═══════════ */
+.footer {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 36px 32px 64px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.footer-text {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.8;
+}
+
+/* ═══════════ RESPONSIVE ═══════════ */
+@media (max-width: 768px) {
+  .hero-inner { padding: 36px 20px 12px; gap: 14px; }
+  .hero-title { font-size: 28px; letter-spacing: 0.02em; }
+  .brief-card {
+    flex-direction: column; align-items: flex-start;
+    padding: 14px 18px; gap: 8px 0;
+  }
+  .brief-stats {
+    margin-left: 0; padding-left: 0; border-left: none;
+    padding-top: 10px; border-top: 1px solid hsla(0,0%,100%,.08); width: 100%;
+  }
+  .brief-weather {
+    margin-left: 0; padding-left: 0; border-left: none;
+    padding-top: 10px; border-top: 1px solid hsla(0,0%,100%,.08); width: 100%;
+  }
+  .brief-footer { margin-left: 0; width: 100%; }
+  .main { padding: 36px 20px 56px; }
+  .toc-inner { padding: 8px 20px; gap: 4px 16px; }
+  .cards { grid-template-columns: 1fr; }
+  .card { padding: 18px 18px 16px; }
+  .section-header { margin-bottom: 28px; }
+  .section-title-cn { font-size: 22px; }
+}
+@media (max-width: 480px) {
+  .hero-title { font-size: 22px; }
+  .hero-lead { font-size: 13px; }
+  .brief-number { font-size: 34px; }
+}
+
+/* ═══════════ FLOATING AI DECORATIVE ICONS ═══════════ */
+.float-icon {
+  position: fixed; z-index: 0; pointer-events: none;
+  opacity: 0.12;
+  transition: opacity 0.6s ease;
+}
+.float-icon:hover { opacity: 0.35; }
+
+.float-spark-1 { top: 8%;  left: 12%;  animation: floatA 14s ease-in-out infinite; }
+.float-spark-2 { top: 18%; right: 8%;   animation: floatB 16s ease-in-out infinite; opacity: 0.08; }
+.float-spark-3 { top: 40%; left: 5%;   animation: floatC 18s ease-in-out infinite; opacity: 0.09; }
+.float-spark-4 { top: 65%; right: 10%; animation: floatD 15s ease-in-out infinite; opacity: 0.10; }
+.float-spark-5 { top: 78%; left: 40%;  animation: floatA 20s ease-in-out infinite; opacity: 0.07; }
+.float-spark-6 { top: 30%; right: 18%; animation: floatB 17s ease-in-out infinite; opacity: 0.09; }
+
+.float-node-1 { top: 22%; left: 20%; animation: floatC 12s ease-in-out infinite; opacity: 0.10; }
+.float-node-2 { top: 52%; right: 15%; animation: floatD 19s ease-in-out infinite; opacity: 0.08; }
+.float-node-3 { top: 85%; left: 10%; animation: floatA 22s ease-in-out infinite; opacity: 0.09; }
+
+.float-bracket-1 { top: 12%; right: 22%; animation: floatB 13s ease-in-out infinite; opacity: 0.06; }
+.float-bracket-2 { top: 70%; left: 18%; animation: floatD 16s ease-in-out infinite; opacity: 0.07; }
+
+@keyframes floatA { 0%,to{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(-18px) rotate(6deg)} 66%{transform:translateY(8px) rotate(-4deg)} }
+@keyframes floatB { 0%,to{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(12px) rotate(-5deg)} 66%{transform:translateY(-14px) rotate(3deg)} }
+@keyframes floatC { 0%,to{transform:translateY(0) scale(1)} 50%{transform:translateY(-10px) scale(1.15)} }
+@keyframes floatD { 0%,to{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+/* ═══════════ SECTION DECORATIVE ICON ═══════════ */
+.section-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 10px; opacity: 0.6;
+}
+.section-icon svg { width: 36px; height: 36px; }
+
+/* ═══════════ EMPTY SECTION PLACEHOLDER ═══════════ */
+.empty-card {
+  background: linear-gradient(135deg, hsla(0,0%,100%,.02), hsla(0,0%,100%,.01));
+  border: 1px dashed hsla(0,0%,100%,.08);
+  border-radius: var(--radius);
+  padding: 40px 24px;
+  text-align: center;
+  animation: fadeUp 0.5s ease both;
+  opacity: 0;
+  grid-column: 1 / -1;
+}
+.empty-icon {
+  font-size: 28px; margin-bottom: 10px;
+  opacity: 0.25;
+}
+.empty-text {
+  font-size: 13px; color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+/* ═══════════ LINK MODAL ═══════════ */
+.link-modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+.link-modal-overlay.active { display: flex; }
+.link-modal {
+  background: #1a1a24;
+  border: 1px solid hsla(0,0%,100%,.12);
+  border-radius: 16px;
+  padding: 28px 24px;
+  max-width: 520px; width: 100%;
+  box-shadow: 0 24px 80px rgba(0,0,0,.5);
+}
+.link-modal-title {
+  font-size: 16px; font-weight: 700; color: #fff;
+  margin-bottom: 16px;
+}
+.link-modal-url {
+  font-family: var(--mono);
+  font-size: 13px; color: var(--accent-glow);
+  background: hsla(0,0%,100%,.05);
+  border: 1px solid hsla(0,0%,100%,.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  line-height: 1.6;
+  cursor: text;
+}
+.link-modal-hint {
+  font-size: 12px; color: var(--text-3);
+  margin-top: 14px; line-height: 1.6;
+}
+.link-modal-close {
+  margin-top: 16px;
+  width: 100%; padding: 10px;
+  background: hsla(0,0%,100%,.06);
+  border: 1px solid hsla(0,0%,100%,.1);
+  border-radius: 10px;
+  color: var(--text-2); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background 0.2s;
+}
+.link-modal-close:hover { background: hsla(0,0%,100%,.1); }
+.link-modal-copied {
+  font-size: 13px; color: #4ade80;
+  margin-top: 8px; display: none;
+}
+.link-modal-copied.show { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ AMBIENT BACKGROUND ═══════════ -->
+<div class="bg-grid"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<!-- ═══════════ FLOATING AI DECORATIVE ICONS ═══════════ -->
+<svg class="float-icon float-spark-1" width="36" height="36" viewBox="0 0 36 36"><path d="M18 0l2.5 10.5L18 6l-2.5 4.5zM18 36l-2.5-10.5L18 30l2.5-4.5zM0 18l10.5-2.5L6 18l4.5 2.5zM36 18L25.5 15.5 30 18l-4.5 2.5z" fill="var(--accent-glow)"/><circle cx="10" cy="10" r="1.5" fill="var(--accent-glow)" opacity="0.5"/><circle cx="26" cy="8" r="1" fill="var(--accent-glow)" opacity="0.4"/><circle cx="8" cy="26" r="1" fill="var(--accent-glow)" opacity="0.4"/><circle cx="28" cy="28" r="1.5" fill="var(--accent-glow)" opacity="0.5"/></svg>
+<svg class="float-icon float-spark-2" width="28" height="28" viewBox="0 0 28 28"><path d="M14 2l1.5 8L14 6l-1.5 4zM14 26l-1.5-8L14 22l1.5-4zM2 14l8-1.5L6 14l4 1.5zM26 14l-8-1.5 4 1.5-4 1.5z" fill="var(--accent-glow)"/></svg>
+<svg class="float-icon float-spark-3" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="2" fill="var(--accent-glow)"/><circle cx="16" cy="16" r="6" fill="none" stroke="var(--accent-glow)" stroke-width="0.8" opacity="0.6"/><circle cx="16" cy="16" r="10" fill="none" stroke="var(--accent-glow)" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-spark-4" width="24" height="24" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1" fill="none" stroke="var(--accent-glow)" stroke-width="1.2" opacity="0.7"/><rect x="5" y="5" width="14" height="14" rx="1.5" fill="none" stroke="var(--accent-glow)" stroke-width="0.6" opacity="0.35"/></svg>
+<svg class="float-icon float-spark-5" width="44" height="44" viewBox="0 0 44 44"><path d="M22 4l3 13L22 8l-3 9zM22 40l-3-13 3 9 3-9zM4 22l13-3L8 22l9 3zM40 22L27 19l9 3-9 3z" fill="var(--accent-glow)"/></svg>
+<svg class="float-icon float-spark-6" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="1.5" fill="var(--accent-glow)"/><line x1="5" y1="10" x2="9" y2="10" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="11" y1="10" x2="15" y2="10" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="10" y1="5" x2="10" y2="9" stroke="var(--accent-glow)" stroke-width="0.6"/><line x1="10" y1="11" x2="10" y2="15" stroke="var(--accent-glow)" stroke-width="0.6"/></svg>
+
+<svg class="float-icon float-node-1" width="48" height="48" viewBox="0 0 48 48"><circle cx="12" cy="12" r="2.5" fill="var(--accent-glow)"/><circle cx="36" cy="14" r="3" fill="#00b4ff"/><circle cx="24" cy="34" r="2" fill="#7b2fff"/><line x1="14" y1="12" x2="34" y2="14" stroke="var(--accent-glow)" stroke-width="0.6" opacity="0.4"/><line x1="34" y1="14" x2="24" y2="34" stroke="#00b4ff" stroke-width="0.5" opacity="0.3"/><line x1="14" y1="12" x2="24" y2="34" stroke="#7b2fff" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-node-2" width="40" height="40" viewBox="0 0 40 40"><circle cx="8" cy="20" r="2" fill="#4ade80"/><circle cx="20" cy="8" r="2.5" fill="var(--accent-glow)"/><circle cx="32" cy="20" r="2" fill="#00b4ff"/><circle cx="20" cy="32" r="2" fill="#ffa500"/><line x1="20" y1="8" x2="8" y2="20" stroke="#4ade80" stroke-width="0.5" opacity="0.3"/><line x1="20" y1="8" x2="32" y2="20" stroke="var(--accent-glow)" stroke-width="0.5" opacity="0.3"/><line x1="8" y1="20" x2="20" y2="32" stroke="#00b4ff" stroke-width="0.5" opacity="0.3"/><line x1="32" y1="20" x2="20" y2="32" stroke="#ffa500" stroke-width="0.5" opacity="0.3"/></svg>
+<svg class="float-icon float-node-3" width="36" height="36" viewBox="0 0 36 36"><polygon points="18,3 31,13 26,30 10,30 5,13" fill="none" stroke="var(--accent-glow)" stroke-width="0.8" opacity="0.5"/><circle cx="18" cy="3" r="2" fill="var(--accent-glow)"/><circle cx="31" cy="13" r="1.8" fill="#00b4ff"/><circle cx="26" cy="30" r="1.8" fill="#7b2fff"/><circle cx="10" cy="30" r="1.8" fill="#4ade80"/><circle cx="5" cy="13" r="1.8" fill="#ffa500"/></svg>
+
+<svg class="float-icon float-bracket-1" width="60" height="30" viewBox="0 0 60 30"><path d="M20 3L8 15l12 12" fill="none" stroke="var(--accent-glow)" stroke-width="1" stroke-linecap="round" opacity="0.5"/><path d="M40 3l12 12-12 12" fill="none" stroke="var(--accent-glow)" stroke-width="1" stroke-linecap="round" opacity="0.5"/><circle cx="30" cy="15" r="2" fill="#4ade80" opacity="0.6"/></svg>
+<svg class="float-icon float-bracket-2" width="52" height="26" viewBox="0 0 52 26"><path d="M16 2l-8 11 8 11" fill="none" stroke="#00b4ff" stroke-width="0.8" stroke-linecap="round" opacity="0.4"/><path d="M36 2l8 11-8 11" fill="none" stroke="#00b4ff" stroke-width="0.8" stroke-linecap="round" opacity="0.4"/><rect x="22" y="9" width="8" height="6" rx="1" fill="none" stroke="var(--accent-glow)" stroke-width="0.7" opacity="0.45"/></svg>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <div class="hero-badge">
+        <span>🎨</span> <span>AI + Design</span>
+      </div>
+      <h1 class="hero-title">2026.6.19 的 AIGC 设计日报</h1>
+      <p class="hero-lead">Adobe 全线创意工具接入 AI 智能体，乔木画布开源免费上线，DeepSeek 正式支持图片识别——设计工具链正迎来 AI 原生化重构</p>
+      <div class="hero-meta">
+        <span>北京时间 · 06.19</span>
+        <span class="hero-meta-sep"></span>
+        <span>AI HOT · 优设网 · 量子位 · 极客公园</span>
+      </div>
+    </div>
+    <aside class="brief-card">
+      <p class="brief-label">Today's Brief</p>
+      <div class="brief-number">10</div>
+      <p class="brief-unit">条精选资讯</p>
+      <div class="brief-stats">
+        <span class="brief-stat"><strong>2</strong> 模型</span>
+        <span class="brief-stat"><strong>5</strong> 产品</span>
+        <span class="brief-stat"><strong>2</strong> 行业</span>
+        <span class="brief-stat"><strong>1</strong> 论文</span>
+        <span class="brief-stat"><strong>0</strong> 观点</span>
+      </div>
+      <div class="brief-weather">
+        <span class="weather-icon">🌧</span>
+        <span class="weather-info">保定 · 小雨 25°C · 东风2级 · 湿度81%</span>
+      </div>
+      <div class="brief-footer">报告窗口 06.18–06.19 · 生成 07:50</div>
+    </aside>
+  </div>
+</header>
+
+<!-- TOC -->
+<nav class="toc">
+  <div class="toc-inner">
+    <span class="toc-label">目录</span>
+    <a class="toc-link" href="#sec-products">产品更新</a>
+    <a class="toc-link" href="#sec-industry">行业动态</a>
+    <a class="toc-link" href="#sec-models">模型发布</a>
+    <a class="toc-link" href="#sec-paper">论文研究</a>
+    <a class="toc-link" href="#sec-tip">技巧观点</a>
+  </div>
+</nav>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main class="main">
+
+  <!-- ═══════════ 产品更新 ═══════════ -->
+  <section class="section" id="sec-products">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><rect x="4" y="8" width="28" height="22" rx="3" fill="none" stroke="var(--accent-glow)" stroke-width="1.2"/><rect x="10" y="13" width="16" height="12" rx="2" fill="rgba(255,59,48,.08)"/><circle cx="7" cy="12" r="1" fill="#00b4ff"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> PRODUCTS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">产品更新</div>
+      <p class="section-desc">AI 设计工具与创意产品的新动向</p>
+      <span class="section-count">5 条</span>
+    </div>
+    <div class="cards">
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">The Decoder</span>
+          <span class="card-time">昨天下午 13:00</span>
+        </div>
+        <h3 class="card-title">Adobe 全线 Creative Cloud 接入 AI 智能体</h3>
+        <p class="card-summary">Adobe 将创意智能体扩展至 Photoshop、Premiere 等多款应用，可自动完成换背景、素材分拣粗剪、批量生成文件等多步骤任务。Firefly 新增品牌套件和自动剪辑。</p>
+        <p class="card-insight">设计工具从"辅助功能"进化为"自主执行"，设计师的角色将更偏向创意决策而非重复操作</p>
+        <a class="card-link" href="https://the-decoder.com/adobe-adds-ai-agents-to-photoshop-premiere-and-more-creative-cloud-apps" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">X: Vista</span>
+          <span class="card-time">昨天上午 15:43</span>
+        </div>
+        <h3 class="card-title">乔木画布免费开源：AI 生图 + 抠图，一键部署 Vercel</h3>
+        <p class="card-summary">开源在线图像编辑器，支持 Seedream 和 GPT-image-2 生图、一键抠图、2 万图标库，功能类似简化版 PS。端午节全功能免费开放。</p>
+        <p class="card-insight">设计师又多了一个零成本的 AI 图片处理工具，轻量级需求不再依赖重型软件</p>
+        <a class="card-link" href="https://x.com/vista8/status/2067513484364140994" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">03</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">IT之家</span>
+          <span class="card-time">昨天上午 15:48</span>
+        </div>
+        <h3 class="card-title">DeepSeek 识图模式正式上线 App 和网页端</h3>
+        <p class="card-summary">DeepSeek 新增独立识图模式，用户可直接上传图片让 AI 识别分析，背后基于"以视觉原语思考"的多模态模型架构，能力超越简单文字提取。</p>
+        <p class="card-insight">国产大模型视觉能力补齐，设计师做竞品截图分析、参考图解读又多了一个免费选项</p>
+        <a class="card-link" href="https://www.ithome.com/0/966/066.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">04</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">Claude Blog</span>
+          <span class="card-time">昨天凌晨 01:52</span>
+        </div>
+        <h3 class="card-title">Claude Enterprise 企业 MCP 连接器：Figma 等设计工具零接触集成</h3>
+        <p class="card-summary">管理员可通过 Okta 等 IdP 为整个组织配置 MCP 连接器，用户首次登录自动授权。首批支持 Asana、Canva、Figma、Linear 等设计协作工具。</p>
+        <p class="card-insight">设计团队未来可在 Claude 中直接读取 Figma 组件信息，设计→开发流程进一步打通</p>
+        <a class="card-link" href="https://claude.com/blog/enterprise-managed-auth" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">05</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">月之暗面</span>
+          <span class="card-time">昨天上午 17:07</span>
+        </div>
+        <h3 class="card-title">Kimi Work 新增目标模式与插件中心：支持 Canva 可画等</h3>
+        <p class="card-summary">Kimi Work 新增目标模式，Agent 可自主循环推进任务最长 24 小时。插件中心支持百度网盘、Canva 可画、飞书、Notion 等外部应用。6 月额度消耗 5 折。</p>
+        <p class="card-insight">Agent 工作模式趋向自主化，Canva 插件接入意味着 AI 可直接操作设计模板</p>
+        <a class="card-link" href="https://mp.weixin.qq.com/s/KJav-s9qlkzV9yN8r6-sNg" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ 行业动态 ═══════════ -->
+  <section class="section" id="sec-industry">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="12" fill="none" stroke="#ffa500" stroke-width="1"/><line x1="18" y1="6" x2="18" y2="10" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="26" x2="18" y2="30" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="6" y1="18" x2="10" y2="18" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/><line x1="26" y1="18" x2="30" y2="18" stroke="#ffa500" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> INDUSTRY <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">行业动态</div>
+      <p class="section-desc">影响设计行业的 AI 产业大事件</p>
+      <span class="section-count">2 条</span>
+    </div>
+    <div class="cards">
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">IT之家</span>
+          <span class="card-time">昨天上午 17:04</span>
+        </div>
+        <h3 class="card-title">八部门：支持消费者购买 AI 相关产品，培育智能穿戴消费市场</h3>
+        <p class="card-summary">商务部等八部门发布"人工智能+消费"实施意见，重点支持 AI 手机、智能电脑、AI 眼镜等产品供给，建设 AI 商品首发平台。</p>
+        <p class="card-insight">政策驱动 AI 硬件消费升级，智能穿戴设备设计需求将迎来增长</p>
+        <a class="card-link" href="https://www.ithome.com/0/966/154.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">TechCrunch</span>
+          <span class="card-time">今天凌晨 03:59</span>
+        </div>
+        <h3 class="card-title">OpenAI IPO 前连招两员大将：Transformer 共同作者 + 前白宫 AI 政策官员</h3>
+        <p class="card-summary">Transformer 架构共同作者 Noam Shazeer 离开 Google 加入 OpenAI，同时招揽前白宫 AI 政策官员 Dean Ball 领导战略团队。AI 顶尖人才加速流动。</p>
+        <p class="card-insight">头部 AI 公司的人才军备竞赛白热化，设计领域的 AI 技术底座还在快速演进中</p>
+        <a class="card-link" href="https://techcrunch.com/2026/06/18/openai-is-bringing-on-some-big-guns-in-the-lead-up-to-its-ipo" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ 模型发布 ═══════════ -->
+  <section class="section" id="sec-models">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="10" fill="none" stroke="var(--accent-glow)" stroke-width="1.2"/><circle cx="18" cy="18" r="4" fill="rgba(255,59,48,.1)"/><line x1="18" y1="3" x2="18" y2="8" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="28" x2="18" y2="33" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="18" x2="8" y2="18" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/><line x1="28" y1="18" x2="33" y2="18" stroke="var(--accent-glow)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> MODELS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">模型发布</div>
+      <p class="section-desc">新模型与能力升级</p>
+      <span class="section-count">2 条</span>
+    </div>
+    <div class="cards">
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-models">模型</span>
+          <span class="card-source">X: xAI</span>
+          <span class="card-time">今天凌晨 01:02</span>
+        </div>
+        <h3 class="card-title">Grok TTS 盲测人类感得分 96 登顶</h3>
+        <p class="card-summary">xAI 的 Grok TTS 在 Vapi Humanness Index 盲测中以 96 分（真人 100 分）位居榜首，用同一声音和引文对比各模型的语音克隆效果。</p>
+        <p class="card-insight">AI 语音已接近真人水平，交互设计中的语音界面将更加自然可信</p>
+        <a class="card-link" href="https://x.com/xai/status/2067654108123910495" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-models">模型</span>
+          <span class="card-source">火山引擎</span>
+          <span class="card-time">昨天上午 18:36</span>
+        </div>
+        <h3 class="card-title">火山引擎上线豆包实时语音模型 3.0 API</h3>
+        <p class="card-summary">原生全双工端到端语音大模型，支持多人对话中安静待命、指定话题主动加入，误打断率大幅降低，适用于智能座舱、智能硬件等场景。</p>
+        <p class="card-insight">全双工语音交互的成熟意味着语音 UI 设计将从"一问一答"走向"自然对话"</p>
+        <a class="card-link" href="https://mp.weixin.qq.com/s/L4BJnexabQu5DAxDnwEGxw" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ 论文研究 ═══════════ -->
+  <section class="section" id="sec-paper">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><rect x="5" y="6" width="26" height="24" rx="2" fill="none" stroke="#7b2fff" stroke-width="1.2"/><line x1="10" y1="13" x2="26" y2="13" stroke="#7b2fff" stroke-width="0.7" opacity="0.5"/><line x1="10" y1="17" x2="22" y2="17" stroke="#7b2fff" stroke-width="0.5" opacity="0.35"/><line x1="10" y1="21" x2="24" y2="21" stroke="#7b2fff" stroke-width="0.5" opacity="0.35"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> PAPER <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">论文研究</div>
+      <p class="section-desc">前沿研究与技术突破</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-paper">论文</span>
+          <span class="card-source">Anthropic Research</span>
+          <span class="card-time">今天凌晨 00:22</span>
+        </div>
+        <h3 class="card-title">Anthropic Project Fetch 第二阶段：Claude Opus 4.7 自主操控机器人</h3>
+        <p class="card-summary">Claude Opus 4.7 无需人类协助完成全部任务，速度比最快人类团队快约 20 倍。模型在传感器连接、路径规划表现出色，源于通用模型规模化而非专项优化。</p>
+        <p class="card-insight">AI Agent 的物理世界操控能力持续突破，未来可能参与空间设计和实体原型测试</p>
+        <a class="card-link" href="https://www.anthropic.com/research/project-fetch-phase-two" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ 技巧观点（空） ═══════════ -->
+  <section class="section" id="sec-tip">
+    <div class="section-header">
+      <div class="section-icon"><svg viewBox="0 0 36 36"><path d="M6 24l10-14 8 10 6-8" fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="24" r="2.5" fill="#4ade80" opacity="0.5"/><circle cx="30" cy="12" r="2" fill="var(--accent-glow)" opacity="0.5"/></svg></div>
+      <div class="section-label-row">
+        <span class="section-label-line"></span> INSIGHTS <span class="section-label-line"></span>
+      </div>
+      <div class="section-title-cn">技巧观点</div>
+      <p class="section-desc">设计方法论与行业洞察</p>
+      <span class="section-count">0 条</span>
+    </div>
+    <div class="cards">
+      <div class="empty-card">
+        <div class="empty-icon">🤖</div>
+        <p class="empty-text">今日暂无 · 设计相关的观点和技巧文章</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="footer">
+  <p class="footer-text">
+    共 10 条精选资讯 · 数据源：AI HOT + 优设网 + 量子位 + 极客公园 · 报告窗口：2026.06.18 07:50 – 2026.06.19 07:50 (北京时间) · 生成于 2026.06.19 07:50
+  </p>
+</footer>
+
+<!-- ═══════════ LINK MODAL ═══════════ -->
+<div class="link-modal-overlay" id="linkModal">
+  <div class="link-modal">
+    <div class="link-modal-title">🔗 链接已复制到剪贴板</div>
+    <div class="link-modal-url" id="linkModalUrl"></div>
+    <div class="link-modal-copied" id="linkModalCopied">✓ 已复制</div>
+    <p class="link-modal-hint">长按上方链接可选择复制 / 请在浏览器中打开此链接</p>
+    <button class="link-modal-close" id="linkModalClose">关闭</button>
+  </div>
+</div>
+
+<!-- ═══════════ LINK CLICK HANDLER ═══════════ -->
+<script>
+(function(){
+  var modal = document.getElementById('linkModal');
+  var urlEl = document.getElementById('linkModalUrl');
+  var copiedEl = document.getElementById('linkModalCopied');
+  var closeBtn = document.getElementById('linkModalClose');
+
+  function openModal(url) {
+    urlEl.textContent = url;
+    copiedEl.classList.remove('show');
+    modal.classList.add('active');
+    // Try clipboard
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function(){
+        copiedEl.classList.add('show');
+      }).catch(function(){
+        fallbackCopy(url);
+      });
+    } else {
+      fallbackCopy(url);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      copiedEl.classList.add('show');
+    } catch(e) {}
+    document.body.removeChild(ta);
+  }
+
+  function closeModal() {
+    modal.classList.remove('active');
+  }
+
+  closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+
+  document.querySelectorAll('.card-link').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      var url = this.href;
+      // Try window.open first (works in regular browsers)
+      var w = window.open(url, '_blank');
+      if (!w || w.closed || typeof w.closed === 'undefined') {
+        // Blocked — fallback to modal
+        openModal(url);
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

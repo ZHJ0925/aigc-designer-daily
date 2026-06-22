@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026.6.13 的 AIGC 设计日报</title>
+<style>
+:root {
+  --bg:          #FBF7EF;
+  --bg-card:     #FDFCFA;
+  --bg-warm:     #F7F3EA;
+  --text:         #2B2926;
+  --text-2:       #6F6A61;
+  --text-3:       #9E978D;
+  --accent:       #C96442;
+  --accent-2:     #A95F43;
+  --accent-light: #F5EDE6;
+  --border:       #E8E2D8;
+  --border-hover: #C9C2B5;
+  --insight-bg:   #F9F1EB;
+  --insight-bd:   #D9C8B8;
+  --max-w:        1040px;
+  --radius:       14px;
+  --shadow:       0 1px 3px rgba(43,41,38,0.04);
+  --shadow-hover: 0 2px 8px rgba(43,41,38,0.07);
+  --mono:         "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  --serif:        Georgia, "Times New Roman", "Noto Serif SC", serif;
+  --sans:         system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: clip;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-2); }
+
+/* ═══════════ HERO ═══════════ */
+.hero {
+  background: linear-gradient(180deg, #F7F3EA 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.hero-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 36px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.hero-copy {
+  min-width: 0;
+  padding-bottom: 0;
+}
+.hero-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+.hero-title {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin-bottom: 14px;
+}
+.hero-lead {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.7;
+  max-width: 480px;
+  margin-bottom: 12px;
+}
+.hero-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  display: flex;
+  gap: 6px 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.hero-meta-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Brief Bar (horizontal) ── */
+.brief-card {
+  width: 100%;
+  max-width: min(680px, 100%);
+  background: #FEFCF8;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 0;
+  margin-top: 0;
+}
+.brief-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 0;
+  margin-right: 10px;
+  display: inline;
+}
+.brief-number {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 400;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 0;
+  margin-right: 4px;
+  display: inline;
+}
+.brief-unit {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 0;
+  display: inline;
+}
+.brief-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
+.brief-stat {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.brief-stat strong {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.brief-weather {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.weather-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.weather-info {
+  font-variant-numeric: tabular-nums;
+}
+.brief-footer {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ═══════════ TOC (inside header) ═══════════ */
+.toc {
+  border-top: 1px solid var(--border);
+  background: rgba(251,247,239,0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.toc-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 8px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  align-items: center;
+}
+.toc-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-right: 4px;
+}
+.toc-link {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 6px 4px;
+  border-bottom: 1.5px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+.toc-link:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  text-decoration: none;
+}
+.toc-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ═══════════ MAIN ═══════════ */
+.main {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 44px 32px 64px;
+}
+
+/* ═══════════ SECTION ═══════════ */
+.section {
+  margin-bottom: 36px;
+  scroll-margin-top: 70px;
+}
+@media (max-width: 768px) {
+  .section { scroll-margin-top: 120px; }
+}
+.section-header {
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title-cn {
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 400;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.section-title-en {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+.section-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 9px;
+  line-height: 1.65;
+  max-width: 620px;
+}
+.section-count {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text-3);
+  background: var(--accent-light);
+  padding: 2px 10px;
+  border-radius: 4px;
+  margin-top: 7px;
+  font-weight: 500;
+}
+
+/* ═══════════ CARDS ═══════════ */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 860px) {
+  .cards { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px 18px;
+  transition: border-color 0.3s ease, background 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  animation: fadeUp 0.5s ease both;
+  opacity: 0;
+}
+.card:nth-child(1) { animation-delay: 0.04s; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.12s; }
+.card:nth-child(4) { animation-delay: 0.16s; }
+.card:nth-child(5) { animation-delay: 0.2s; }
+.card:nth-child(6) { animation-delay: 0.24s; }
+.card:nth-child(7) { animation-delay: 0.28s; }
+.card:nth-child(8) { animation-delay: 0.32s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+    opacity: 1;
+  }
+  .card-link::after {
+    transition: none;
+  }
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+  background: #FFFDF9;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.card-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+.card-section-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1.5px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.tag-models  { background: #FDE8E8; color: #B91C1C; }
+.tag-products{ background: #E0F2FE; color: #0369A1; }
+.tag-industry{ background: #FEF3C7; color: #92400E; }
+.tag-paper   { background: #EDE9FE; color: #6D28D9; }
+.tag-tip     { background: #D1FAE5; color: #047857; }
+
+.card-source {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+.card-time {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.card-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+}
+.card-summary {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.65;
+}
+.card-insight {
+  font-size: 12px;
+  color: var(--accent-2);
+  background: var(--insight-bg);
+  border-left: 2px solid var(--insight-bd);
+  padding: 8px 13px;
+  border-radius: 0 5px 5px 0;
+  line-height: 1.6;
+}
+.card-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding: 8px 4px;
+  transition: color 0.2s;
+  border-radius: 3px;
+}
+.card-link:hover { color: var(--accent-2); }
+.card-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.card-link::after {
+  content: '→';
+  font-size: 12px;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.card-link:hover::after { transform: translateX(3px); }
+
+/* ═══════════ FOOTER ═══════════ */
+.footer {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.footer-text {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.8;
+}
+
+/* ═══════════ RESPONSIVE ═══════════ */
+@media (max-width: 768px) {
+  .hero-inner {
+    padding: 28px 20px 12px;
+    gap: 12px;
+  }
+  .hero-title { font-size: 26px; }
+  .brief-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 16px;
+    gap: 6px 0;
+  }
+  .brief-stats {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    width: 100%;
+  }
+  .brief-footer {
+    margin-left: 0;
+    width: 100%;
+  }
+  .brief-weather {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    width: 100%;
+  }
+  .main { padding: 32px 20px 48px; }
+  .toc-inner { padding: 7px 20px; gap: 4px 14px; }
+  .cards { grid-template-columns: 1fr; }
+  .card { padding: 16px 16px 14px; }
+  .section-header { margin-bottom: 18px; }
+}
+@media (max-width: 480px) {
+  .hero-title { font-size: 22px; }
+  .hero-eyebrow { font-size: 9px; }
+  .hero-lead { font-size: 13px; }
+  .brief-number { font-size: 30px; }
+}
+
+/* ═══════════ DARK MODE ═══════════ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #1A1815;
+    --bg-card:     #211F1B;
+    --bg-warm:     #1E1B17;
+    --text:         #E8E2D8;
+    --text-2:       #9E978D;
+    --text-3:       #6F6A61;
+    --accent:       #E8A07A;
+    --accent-2:     #D4886A;
+    --accent-light: #2E2520;
+    --border:       #332F29;
+    --border-hover: #4A453D;
+    --insight-bg:   #2A2220;
+    --insight-bd:   #5A4A40;
+    --shadow:       none;
+    --shadow-hover: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .hero { background: linear-gradient(180deg, #1E1B17 0%, var(--bg) 100%); }
+  .toc  { background: rgba(26,24,21,0.94); }
+  .brief-card { background: #211F1B; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO + TOC (same container) ═══════════ -->
+<header class="hero">
+  <div class="hero-inner">
+    <!-- Left: editorial copy -->
+    <div class="hero-copy">
+      <p class="hero-eyebrow">UIUX Designer · AIGC Daily</p>
+      <h1 class="hero-title">2026.6.13 的 AIGC 设计日报</h1>
+      <p class="hero-lead">AI 工具从「辅助执行」走向「策展协作」——零代码生成、智能排版与 PRD 新范式正在重新定义设计师的工具链。</p>
+      <div class="hero-meta">
+        <span>北京时间</span>
+        <span class="hero-meta-sep"></span>
+        <span>来自 AI HOT Daily</span>
+      </div>
+    </div>
+    <!-- Right: brief card -->
+    <aside class="brief-card">
+      <p class="brief-label">Today's Brief</p>
+      <div class="brief-number">11</div>
+      <p class="brief-unit">条精选资讯</p>
+      <div class="brief-stats">
+        <span class="brief-stat"><strong>1</strong> 模型</span>
+        <span class="brief-stat"><strong>2</strong> 产品</span>
+        <span class="brief-stat"><strong>1</strong> 行业</span>
+        <span class="brief-stat"><strong>1</strong> 论文</span>
+        <span class="brief-stat"><strong>6</strong> 观点</span>
+      </div>
+      <div class="brief-weather">
+        <span class="weather-icon">☁</span>
+        <span class="weather-info">保定 · 多云 29°C · 西南风4级 · 湿度46%</span>
+      </div>
+      <div class="brief-footer">报告窗口 06.12–06.13 · 生成 13:46</div>
+    </aside>
+  </div>
+</header>
+
+<!-- TOC: outside header for sticky positioning -->
+<nav class="toc">
+    <div class="toc-inner">
+      <span class="toc-label">目录</span>
+      <a class="toc-link" href="#sec-models">模型发布</a>
+      <a class="toc-link" href="#sec-products">产品更新</a>
+      <a class="toc-link" href="#sec-industry">行业动态</a>
+      <a class="toc-link" href="#sec-paper">论文研究</a>
+      <a class="toc-link" href="#sec-tip">技巧观点</a>
+    </div>
+  </nav>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main class="main">
+
+  <!-- 1. 模型发布/更新 -->
+  <section class="section" id="sec-models">
+    <div class="section-header">
+      <div class="section-title-cn">模型发布 / 更新</div>
+      <div class="section-title-en">Model Updates</div>
+      <p class="section-desc">多模态及生成模型的能力演进，关注对视觉设计和创意生产的潜在影响。</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">01</span>
+          <span class="card-section-tag tag-models">模型</span>
+          <span class="card-source">X · MiniMax</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">MiniMax M3 多模态开源模型发布，原生支持图像与百万 token 上下文</h3>
+        <p class="card-summary">M3 约 428B 总参数、23B 激活参数，融合编码、智能体和原生多模态能力，上下文窗口扩展至 100 万 token，同步上线 MiniMax Code 及 API 平台。</p>
+        <p class="card-insight">原生多模态模型可辅助设计师进行图像理解、视频分析与跨媒介创意探索，为 AIGC 设计工作流中的素材理解环节提供新的底层能力。</p>
+        <a class="card-link" href="https://x.com/MiniMax_AI/status/2065436935188058208" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 2. 产品发布/更新 -->
+  <section class="section" id="sec-products">
+    <div class="section-header">
+      <div class="section-title-cn">产品发布 / 更新</div>
+      <div class="section-title-en">Product Updates</div>
+      <p class="section-desc">设计工具与 AI 产品的功能更新，重点关注可落地到设计工作流的能力。</p>
+      <span class="section-count">2 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">02</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">IT之家</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">iOS 27 健康 App 设计改版：卡片布局、视觉营养识别与围绝经期追踪</h3>
+        <p class="card-summary">iOS 27 健康 App 从列表全面改为卡片化信息架构，新增相机视觉智能营养识别，经期追踪扩展支持围绝经期分析，数据同步速度提升。</p>
+        <p class="card-insight">卡片化布局 + 视觉智能交互是移动端设计趋势的典型案例，信息架构从「列表浏览」转向「卡片决策」，UI 设计师可从中学习大厂的设计演进逻辑。</p>
+        <a class="card-link" href="https://www.ithome.com/0/963/302.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">03</span>
+          <span class="card-section-tag tag-products">产品</span>
+          <span class="card-source">IT之家</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">豆包上线「任务模式」：零代码网页生成、一键 PPT 与数据可视化</h3>
+        <p class="card-summary">豆包大范围上线任务模式，支持定时执行、零代码网页生成、一键 PPT 制作、数据可视化分析等全链路 Agent 执行；原思考模式升级为专家模式。</p>
+        <p class="card-insight">零代码网页和 PPT 生成直接改变了设计师的原型制作和汇报交付方式——从手绘线框图到一句话出页面，设计师角色将从「执行者」加速转向「策展人」。</p>
+        <a class="card-link" href="https://www.ithome.com/0/963/725.htm" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 3. 行业动态 -->
+  <section class="section" id="sec-industry">
+    <div class="section-header">
+      <div class="section-title-cn">行业动态</div>
+      <div class="section-title-en">Industry Signals</div>
+      <p class="section-desc">AI 行业格局变化，为设计师提供宏观视角与需求预判。</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">04</span>
+          <span class="card-section-tag tag-industry">行业</span>
+          <span class="card-source">Anthropic</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">TCS 与 Anthropic 合作：Claude 进入金融、医疗等受监管行业</h3>
+        <p class="card-summary">塔塔咨询服务将向 56 国 5 万员工提供 Claude，率先在工程、财务、法务、营销团队中落地，并为企业客户构建面向金融和医疗的 AI 产品。</p>
+        <p class="card-insight">AI 进入受监管行业意味着大量企业级 AI 产品的设计需求即将爆发——B 端设计师需关注合规 UX、可信 AI 交互和行业专属设计规范。</p>
+        <a class="card-link" href="https://www.anthropic.com/news/tcs-anthropic-partnership" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 4. 论文研究 -->
+  <section class="section" id="sec-paper">
+    <div class="section-header">
+      <div class="section-title-cn">论文研究</div>
+      <div class="section-title-en">Research Notes</div>
+      <p class="section-desc">以用户研究视角解读 AI 学术成果，关注对设计方法学的启发。</p>
+      <span class="section-count">1 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">05</span>
+          <span class="card-section-tag tag-paper">论文</span>
+          <span class="card-source">Google Research</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">Google Research：AI 辅助用户理解皮肤问题的 UX 实证研究</h3>
+        <p class="card-summary">发表于 JAMA Dermatology，2345 人参与的定量研究显示 AI 辅助显著提升了用户识别皮肤疾病名称的能力，并影响了就医或自我护理的下一步决策。</p>
+        <p class="card-insight">这是 AI 辅助健康决策 UX 的实证研究典范——用数据证明 AI 如何改变用户认知与行为，为医疗健康类产品的 AI 功能设计提供了方法论参考。</p>
+        <a class="card-link" href="https://research.google/blog/research-into-how-ai-can-help-users-understand-skin-conditions" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- 5. 技巧与观点 -->
+  <section class="section" id="sec-tip">
+    <div class="section-header">
+      <div class="section-title-cn">技巧与观点</div>
+      <div class="section-title-en">Design Tactics</div>
+      <p class="section-desc">可落地的设计方法论、写作技巧与 AI 协作范式，关注可直接引入工作流的实践。</p>
+      <span class="section-count">6 条</span>
+    </div>
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">06</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">X · Oran Ge</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">《人味儿写作心法》：让 AI 写作保留「存在感」的策展方法</h3>
+        <p class="card-summary">作者发现 AI 改稿后文字缺乏「人味」——人在特定位置付出过代价的「存在感」无法被 AI 复现，为此制作了开源写作技能，已发布至 GitHub。</p>
+        <p class="card-insight">对品牌文案、产品微文案和内容设计有直接启发——如何在 AI 辅助内容生产中保留品牌人格和作者印记，是内容设计师需要掌握的新策展技能。</p>
+        <a class="card-link" href="https://x.com/oran_ge/status/2065566882774868125" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">07</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">X · 小互</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">公众号自动排版技能升级：一句话完成排版、封面生成、一键发布</h3>
+        <p class="card-summary">开源工具实现 20 种主题颜色可选、自动分析内容排版、封面生成、一键发送至公众号草稿箱，支持在 Claude Code / Codex 中可视化预览并选择。</p>
+        <p class="card-insight">自动化排版工作流可将设计师从重复的格式调整中解放出来——设计师的精力应集中在创意方向和品牌调性，而非像素级排版的机械劳动。</p>
+        <a class="card-link" href="https://x.com/xiaohu/status/2065278092441268246" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">08</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">X · Vista</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">qiaomu-ai-prd：面向 AI 开发者的结构化 PRD 生成 Prompt</h3>
+        <p class="card-summary">发布专为 AI Agent 开发场景设计的 PRD 生成 Prompt，开发者先用该模板生成文档再交给 AI 实现，可显著提升功能完整度和丰富性。</p>
+        <p class="card-insight">为设计师与 AI 协作写需求文档提供了新范式——PRD 本身也需要「面向 AI」重新设计，这对产品设计师的需求表达方式提出了新课题。</p>
+        <a class="card-link" href="https://x.com/vista8/status/2065264509170876417" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">09</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">X · 邵猛</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">Spec 驱动开发三技能：产品规格 → 技术规格 → 一致性验证闭环</h3>
+        <p class="card-summary">用三个 Skills 覆盖 Spec → Implement → Verify 全流程，分 PRODUCT.md（用户故事、不变量）和 TECH.md（架构策略）两层，随 PR 提交，可移植不绑定特定工具。</p>
+        <p class="card-insight">规格驱动的协作模式可弥合设计与开发之间的沟通鸿沟——设计系统、组件库等需要精确描述的项目尤其适合引入这种可版本化的工作流。</p>
+        <a class="card-link" href="https://x.com/shao__meng/status/2065234132431675439" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">10</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">Anthropic</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">Anthropic 首次大规模 AI 公众调查：48% 盼 AI 治病，64% 忧失业</h3>
+        <p class="card-summary">对 5.2 万美国人调查：48% 将治愈疾病列为首要期望，64% 担忧失业，70% 支持政府监管；最关注隐私（56%）和儿童安全（52%），仅 15% 信任 AI 公司决策。</p>
+        <p class="card-insight">公众对 AI 的信任与恐惧数据是设计 AI 产品体验的重要输入——透明度、安全感和可控性是 AI 产品 UX 设计的三个核心锚点，需在设计评审中主动纳入。</p>
+        <a class="card-link" href="https://www.anthropic.com/news/anthropic-public-record" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <span class="card-num">11</span>
+          <span class="card-section-tag tag-tip">观点</span>
+          <span class="card-source">OpenAI</span>
+          <span class="card-time">昨天</span>
+        </div>
+        <h3 class="card-title">OpenAI 推出三门 Academy 课程：掌握 AI 工作流与智能体应用</h3>
+        <p class="card-summary">发布三门新课程，帮助用户掌握实用 AI 技能、创建可重复工作流，并将 AI Agent 融入日常工作任务中。</p>
+        <p class="card-insight">设计师可通过这些课程系统学习 AI 工具链，将 AI 嵌入从用户研究到原型输出的完整设计工作流，提升端到端效率。</p>
+        <a class="card-link" href="https://openai.com/index/academy-courses-applying-ai-at-work" target="_blank" rel="noopener noreferrer">查看原文</a>
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="footer">
+  <p class="footer-text">
+    共 11 条精选资讯 · 数据源：AI HOT Daily (aihot.virxact.com) · 报告窗口：2026.06.12 08:00 – 06.13 08:00 (北京时间) · 生成于 2026.06.13 13:46
+  </p>
+</footer>
+
+</body>
+</html>
